@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wishlist — Highstreet Society</title>
+<link rel="icon" href="/images/logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css?v=787354f0">
+</head>
+<body>
+<div class="announce" id="announce"></div>
+<header class="site" id="hdr"></header>
+<div class="mmenu" id="mmenu"></div>
+<main class="wrap" id="content"></main>
+<footer class="site" id="ftr"></footer>
+<nav class="tabbar" id="tabbar"></nav>
+<script src="/js/store.js?v=7a28fc41"></script>
+<script>
+(async function(){
+  await HSS.renderLayout('wish');
+  const H=HSS, el=document.getElementById('content');
+  const ids=H.getWish();
+  if(!ids.length){ el.innerHTML=`<div style="padding:30px 0">${H.empty('♡','Nothing saved yet','Tap the heart on any set to save it here.','<a class="btn btn-lime" href="/shop">Discover sets</a>')}</div>`; return; }
+  el.innerHTML=`<div class="shophead"><h1>SAVED SETS</h1><p>${ids.length} set(s) you love</p></div><div class="grid cols-4" id="g"></div>`;
+  const g=document.getElementById('g');
+  for(const id of ids){ try{ const d=await H.api('/api/products/'+id); g.insertAdjacentHTML('beforeend',H.card(d.product)); }catch(e){} }
+  if(!g.children.length){ el.innerHTML=`<div style="padding:30px 0">${H.empty('♡','Saved sets unavailable','Those sets may have been removed.','<a class="btn btn-lime" href="/shop">Discover sets</a>')}</div>`; }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "highstreet-society",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "bash run.sh",
+    "serve": "node stamp.js && node server.js",
+    "stamp": "node stamp.js",
+    "seed": "node seed.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Highstreet Society \u2014 mobile-first Bangladesh e-commerce store",
+  "dependencies": {
+    "compression": "^1.8.2",
+    "express": "^5.2.1",
+    "multer": "^2.4.0"
+  }
+}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contact — Highstreet Society</title>
+<link rel="icon" href="/images/logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css?v=787354f0">
+</head>
+<body>
+<div class="announce" id="announce"></div>
+<header class="site" id="hdr"></header>
+<div class="mmenu" id="mmenu"></div>
+<main class="prose" id="content"></main>
+<footer class="site" id="ftr"></footer>
+<nav class="tabbar" id="tabbar"></nav>
+<script src="/js/store.js?v=7a28fc41"></script>
+<script>
+(async function(){
+  await HSS.renderLayout('contact');
+  const H=HSS, c=(H.settings&&H.settings.contact)||{};
+  document.getElementById('content').innerHTML=`<h1>TALK TO US ✦</h1>
+  <p class="lead">Questions about a set, your order, or delivery? Reach out — we reply fast.</p>
+  <div class="panel" style="margin-top:24px">
+    ${c.mobile?`<div class="sumrow"><span>📞 Phone / WhatsApp</span><b><a href="tel:${H.esc(c.mobile)}" style="color:var(--lime)">${H.esc(c.mobile)}</a></b></div>`:''}
+    ${c.instagram?`<div class="sumrow"><span>📸 Instagram</span><b><a href="${H.esc(c.instagram)}" target="_blank" rel="noopener" style="color:var(--lime)">@highstreetsoociety</a></b></div>`:''}
+    ${c.facebook?`<div class="sumrow"><span>📘 Facebook</span><b><a href="${H.esc(c.facebook)}" target="_blank" rel="noopener" style="color:var(--lime)">Highstreet Society</a></b></div>`:''}
+    ${c.address?`<div class="sumrow"><span>📍 Location</span><b>${H.esc(c.address)}</b></div>`:''}
+  </div>
+  <div class="cbtns">
+    ${c.whatsapp?`<a class="btn btn-lime" href="https://wa.me/88${H.esc(c.whatsapp)}" target="_blank" rel="noopener">WhatsApp Us</a>`:''}
+    ${c.instagram?`<a class="btn btn-ghost" href="${H.esc(c.instagram)}" target="_blank" rel="noopener">Instagram</a>`:''}
+    <a class="btn btn-ghost" href="/track">Track Order</a>
+  </div>`;
+})();
+</script>
+</body>
+</html>
