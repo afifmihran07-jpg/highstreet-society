@@ -6,15 +6,18 @@
     "start": "bash run.sh",
     "serve": "node stamp.js && node server.js",
     "stamp": "node stamp.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "migrate:db": "node scripts/migrate-db.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Highstreet Society \u2014 mobile-first Bangladesh e-commerce store",
+  "description": "Highstreet Society — mobile-first Bangladesh e-commerce store",
   "dependencies": {
     "compression": "^1.8.2",
+    "dotenv": "^18.0.3",
     "express": "^5.2.1",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "pg": "^8.16.3"
   }
 }

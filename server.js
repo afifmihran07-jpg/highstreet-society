@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+require('dotenv').config();
 /* Highstreet Society — E-commerce backend (Express + file DB) */
 const express = require('express');
 const fs = require('fs');
@@ -7,6 +8,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const compression = require('compression');
 const zlib = require('zlib');
+const { initialize: initializePersistence, persistState } = require('./db-postgres');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,14 +53,24 @@ app.disable('x-powered-by');
 
 /* ---------------- DB ---------------- */
 let db;
-function loadDB() {
-  db = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+let persistence = { mode:'json', pool:null };
+let saveTail = Promise.resolve();
+
+function normalizeLocalDB(raw) {
+  db = raw || {};
+  db.meta = db.meta || {};
   db.sessions = db.sessions || {};
   db.reviews = db.reviews || [];
   db.carts = db.carts || [];
   db.content = db.content || {};
-  // Backfill profile fields on existing customers (non-destructive).
-  (db.customers||[]).forEach(c=>{
+  db.customers = db.customers || [];
+  db.designs = db.designs || [];
+  db.revoked = db.revoked || {};
+  db.meta.orderSeq = db.meta.orderSeq || 1001;
+  db.meta.productSeq = db.meta.productSeq || 180;
+  db.meta.customerSeq = db.meta.customerSeq || 1;
+  db.meta.designSeq = db.meta.designSeq || 1001;
+  db.customers.forEach(c=>{
     if(c.address  === undefined) c.address  = '';
     if(c.area     === undefined) c.area     = '';
     if(c.division === undefined) c.division = '';
@@ -66,16 +78,34 @@ function loadDB() {
     if(c.locality === undefined) c.locality = '';
     if(c.landmark === undefined) c.landmark = '';
   });
-  db.designs = db.designs || [];
-  db.revoked = db.revoked || {};
-  db.meta.designSeq = db.meta.designSeq || 1001;
+  return db;
 }
+
 function saveDB() {
-  const tmp = DB_PATH + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db));
-  fs.renameSync(tmp, DB_PATH);
+  if(persistence.mode === 'json') {
+    const tmp = DB_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(db));
+    fs.renameSync(tmp, DB_PATH);
+    return Promise.resolve();
+  }
+  // Snapshot now, then serialize PostgreSQL writes. This prevents two
+  // synchronous request mutations in this Node process from overwriting each
+  // other while retaining the existing db-object API used throughout server.js.
+  const snapshot = JSON.parse(JSON.stringify(db));
+  const job = saveTail.then(() => persistState(persistence.pool, snapshot));
+  saveTail = job.catch(err => { console.error('[postgres save]', err && err.stack ? err.stack : err); });
+  return job;
 }
-loadDB();
+
+async function initializePersistenceLayer() {
+  const result = await initializePersistence({ jsonPath:DB_PATH });
+  persistence = { mode:result.mode, pool:result.pool };
+  db = normalizeLocalDB(result.db);
+  if(result.migration && result.migration.imported) {
+    console.log('[hss] Imported db.json into PostgreSQL:', result.migration.counts);
+  }
+  console.log('[hss] Persistence mode:', persistence.mode);
+}
 
 /* ---------------- helpers ---------------- */
 const uid = (p='') => p + crypto.randomBytes(8).toString('hex');
@@ -107,14 +137,22 @@ function pubProduct(p){
    Tokens are now self-contained and HMAC-signed, so ANY instance can verify
    them without shared state. db.sessions is still honoured for older tokens
    and is used as a revocation list on logout. */
-const SESSION_SECRET = (() => {
-  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
-  try {
-    const raw = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-    if (raw.settings && raw.settings.sessionSecret) return raw.settings.sessionSecret;
-  } catch (e) {}
-  return crypto.randomBytes(32).toString('hex');
-})();
+let SESSION_SECRET = '';
+function initializeSessionSecret() {
+  if (process.env.SESSION_SECRET) {
+    SESSION_SECRET = process.env.SESSION_SECRET;
+    return;
+  }
+  if (db.settings && db.settings.sessionSecret) {
+    SESSION_SECRET = db.settings.sessionSecret;
+    return;
+  }
+  SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+  // Keep the generated secret in the persistent settings object so a local
+  // JSON fallback does not silently invalidate every session on restart.
+  db.settings = db.settings || {};
+  db.settings.sessionSecret = SESSION_SECRET;
+}
 const b64u = b => Buffer.from(b).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const b64uDec = s => Buffer.from(String(s).replace(/-/g,'+').replace(/_/g,'/'), 'base64').toString();
 const SESSION_TTL_MS = 30*24*60*60*1000;
@@ -218,7 +256,7 @@ function getSession(req, want){
   req._authFail = tok.indexOf('.')<0 ? 'legacy-token-not-in-memory' : 'bad-signature-or-expired';
   return null;
 }
-function requireAdmin(req,res,next){
+async function requireAdmin(req,res,next){
   const s = getSession(req,'admin');
   // Sliding renewal: while the admin is active, keep the session alive by
   // re-issuing the cookie well before expiry. Removes any dependency on a
@@ -228,7 +266,7 @@ function requireAdmin(req,res,next){
       const age = Date.now() - (s.createdAt || 0);
       if(age > SESSION_TTL_MS/2){
         const fresh = issueSession('admin','admin');
-        saveDB();
+        await saveDB();
         setSessionCookie(req,res,'hss_admin_token',fresh);
         res.setHeader('X-HSS-New-Token', fresh);
       }
@@ -328,7 +366,7 @@ app.get('/api/products/:slug/reviews', (req,res)=>{
   const avg = list.length ? Math.round((list.reduce((s,r)=>s+r.rating,0)/list.length)*10)/10 : 0;
   res.json({ reviews:list, count:list.length, average:avg });
 });
-app.post('/api/products/:slug/reviews', (req,res)=>{
+app.post('/api/products/:slug/reviews', async (req,res)=>{
   const p=db.products.find(x=>x.slug===req.params.slug);
   if(!p) return res.status(404).json({ error:'Product not found' });
   const name=String(req.body.name||'').trim(), text=String(req.body.text||'').trim();
@@ -339,12 +377,12 @@ app.post('/api/products/:slug/reviews', (req,res)=>{
   db.reviews=db.reviews||[];
   const r={ id:uid('r'), productId:p.id, name:name.slice(0,60), rating, text:text.slice(0,600),
     approved:false, createdAt:Date.now() };
-  db.reviews.unshift(r); saveDB();
+  db.reviews.unshift(r); await saveDB();
   res.json({ ok:true, pending:true });
 });
 
 /* ---------------- public: abandoned cart capture ---------------- */
-app.post('/api/cart/track', (req,res)=>{
+app.post('/api/cart/track', async (req,res)=>{
   try{
     const b=req.body||{};
     const items=Array.isArray(b.items)?b.items.slice(0,20):[];
@@ -359,7 +397,7 @@ app.post('/api/cart/track', (req,res)=>{
     if(b.name) c.name=String(b.name).slice(0,60);
     if(b.mobile) c.mobile=String(b.mobile).slice(0,20);
     if(db.carts.length>500) db.carts.length=500;
-    saveDB(); res.json({ ok:true, key });
+    await saveDB(); res.json({ ok:true, key });
   }catch(e){ res.json({ ok:true }); }
 });
 
@@ -374,8 +412,8 @@ const designUpload = multer({
   limits:{ fileSize:8*1024*1024, files:5 },
   fileFilter:(r,f,cb)=>/image\/(jpeg|png|webp|gif)|application\/pdf/.test(f.mimetype)?cb(null,true):cb(new Error('Upload images or PDF only'))
 });
-app.post('/api/designs', requireCustomer, (req,res)=>{
-  designUpload.array('files',5)(req,res,err=>{
+app.post('/api/designs', requireCustomer, async (req,res)=>{
+  designUpload.array('files',5)(req,res,async err=>{
     if(err) return res.status(400).json({ error:err.message||'Upload failed' });
     const b=req.body||{};
     const productType=String(b.productType||'').trim();
@@ -391,7 +429,7 @@ app.post('/api/designs', requireCustomer, (req,res)=>{
       details:details.slice(0,2000), files, status:'submitted', quote:null,
       adminNote:'', createdAt:Date.now(), updatedAt:Date.now(),
       history:[{ at:Date.now(), by:'customer', text:'Request submitted' }] };
-    db.designs.unshift(d); saveDB();
+    db.designs.unshift(d); await saveDB();
     res.json({ ok:true, design:d });
   });
 });
@@ -406,7 +444,7 @@ app.get('/api/admin/designs', requireAdmin, (req,res)=>{
   res.json({ designs:list, statuses:DESIGN_STATUSES,
     pending:(db.designs||[]).filter(d=>d.status==='submitted').length });
 });
-app.put('/api/admin/designs/:id', requireAdmin, (req,res)=>{
+app.put('/api/admin/designs/:id', requireAdmin, async (req,res)=>{
   const d=(db.designs||[]).find(x=>x.id===req.params.id);
   if(!d) return res.status(404).json({ error:'Request not found' });
   const ch=[];
@@ -417,12 +455,12 @@ app.put('/api/admin/designs/:id', requireAdmin, (req,res)=>{
     if(q!==d.quote){ ch.push('Quote: '+(q===null?'cleared':'৳'+q)); d.quote=q; } }
   if(req.body.adminNote!==undefined) d.adminNote=String(req.body.adminNote).slice(0,1000);
   if(ch.length){ d.history.push({ at:Date.now(), by:'admin', text:ch.join(' | ') }); d.updatedAt=Date.now(); }
-  saveDB(); res.json({ ok:true, design:d });
+  await saveDB(); res.json({ ok:true, design:d });
 });
-app.delete('/api/admin/designs/:id', requireAdmin, (req,res)=>{
+app.delete('/api/admin/designs/:id', requireAdmin, async (req,res)=>{
   const i=(db.designs||[]).findIndex(x=>x.id===req.params.id);
   if(i<0) return res.status(404).json({ error:'Request not found' });
-  db.designs.splice(i,1); saveDB(); res.json({ ok:true });
+  db.designs.splice(i,1); await saveDB(); res.json({ ok:true });
 });
 
 /* ---------------- public: products ---------------- */
@@ -474,9 +512,9 @@ app.get('/api/products/:key', (req,res)=>{
   const related = db.products.filter(x=>x.published && x.id!==p.id && x.categoryIds.some(c=>p.categoryIds.includes(c))).slice(0,8).map(pubProduct);
   res.json({ product: pubProduct(p), related });
 });
-app.post('/api/products/:key/view', (req,res)=>{
+app.post('/api/products/:key/view', async (req,res)=>{
   const p = db.products.find(x=>x.slug===req.params.key||x.id===req.params.key);
-  if(p){ p.views=(p.views||0)+1; saveDB(); }
+  if(p){ p.views=(p.views||0)+1; await saveDB(); }
   res.json({ok:true});
 });
 
@@ -497,7 +535,7 @@ app.post('/api/coupons/validate', (req,res)=>{
 
 /* ---------------- orders (public) ---------------- */
 const ORDER_STATUSES = ['pending','payment-pending','payment-verified','confirmed','processing','ready','shipped','delivered','cancelled'];
-app.post('/api/orders', optionalCustomer, (req,res)=>{
+app.post('/api/orders', optionalCustomer, async (req,res)=>{
   try{
     const b = req.body||{};
     const name = String(b.name||'').trim();
@@ -585,7 +623,7 @@ app.post('/api/orders', optionalCustomer, (req,res)=>{
       p.sold = (p.sold||0) + it.qty;
     }
     if(b.cartKey && db.carts){ const c=db.carts.find(x=>x.key===b.cartKey); if(c) c.recovered=true; }
-    db.orders.unshift(order); saveDB();
+    db.orders.unshift(order); await saveDB();
     res.json({ ok:true, order: sanitizeOrder(order) });
   }catch(e){ console.error(e); res.status(500).json({ error:'Could not place order. Please try again.' }); }
 });
@@ -625,7 +663,7 @@ function pubCustomer(c){
     locality:c.locality||'', landmark:c.landmark||'' };
 }
 
-app.post('/api/auth/register', (req,res)=>{
+app.post('/api/auth/register', async (req,res)=>{
   const name=String(req.body.name||'').trim(), mobile=String(req.body.mobile||'').trim();
   const pw=String(req.body.password||''), address=String(req.body.address||'').trim(), area=String(req.body.area||'').trim();
   if(name.length<3) return res.status(400).json({ error:'Please enter your full name' });
@@ -637,23 +675,23 @@ app.post('/api/auth/register', (req,res)=>{
     address, area, division:'', district:'', locality:'', landmark:'', createdAt:Date.now() };
   db.customers.push(c);
   const token=issueSession('customer',c.id);
-  saveDB();
+  await saveDB();
   setSessionCookie(req,res,'hss_token',token);
   res.json({ ok:true, token, customer:pubCustomer(c) });
 });
-app.post('/api/auth/login', (req,res)=>{
+app.post('/api/auth/login', async (req,res)=>{
   const mobile=String(req.body.mobile||'').trim(), pw=String(req.body.password||'');
   const c=db.customers.find(x=>x.mobile===mobile);
   if(!c || hash(pw,c.salt)!==c.passHash) return res.status(400).json({ error:'Wrong mobile number or password' });
   const token=issueSession('customer',c.id);
-  saveDB();
+  await saveDB();
   setSessionCookie(req,res,'hss_token',token);
   res.json({ ok:true, token, customer:pubCustomer(c) });
 });
 app.get('/api/auth/me', requireCustomer, (req,res)=>{
   res.json({ customer: pubCustomer(req.cust) });
 });
-app.put('/api/auth/me', requireCustomer, (req,res)=>{
+app.put('/api/auth/me', requireCustomer, async (req,res)=>{
   // The customer is taken from the authenticated session only; any id sent by
   // the client is ignored, so one customer can never edit another's profile.
   const c = req.cust, b = req.body || {};
@@ -685,7 +723,7 @@ app.put('/api/auth/me', requireCustomer, (req,res)=>{
   if(b.locality !== undefined) c.locality = String(b.locality).slice(0,120);
   if(b.landmark !== undefined) c.landmark = String(b.landmark).slice(0,160);
   if(b.address  !== undefined) c.address  = String(b.address).slice(0,500);
-  saveDB();
+  await saveDB();
   res.json({ ok:true, customer: pubCustomer(c) });
 });
 /* ---------- customer password reset ----------
@@ -707,7 +745,7 @@ app.post('/api/auth/forgot', (req,res)=>{
   return res.json(Object.assign({}, generic, { resetToken }));
 });
 
-app.post('/api/auth/reset', (req,res)=>{
+app.post('/api/auth/reset', async (req,res)=>{
   const tok = String((req.body && (req.body.resetToken || req.body.__t)) || '').trim();
   const pw  = String((req.body && req.body.password) || '');
   if(!tok) return res.status(400).json({ error:'Reset link is invalid. Please start again.' });
@@ -733,36 +771,36 @@ app.post('/api/auth/reset', (req,res)=>{
     }
   });
   const token = issueSession('customer', c.id);
-  saveDB();
+  await saveDB();
   setSessionCookie(req,res,'hss_token',token);
   res.json({ ok:true, token,
     customer:{ id:c.id, name:c.name, mobile:c.mobile, address:c.address, area:c.area } });
 });
 
-app.post('/api/auth/logout', (req,res)=>{
+app.post('/api/auth/logout', async (req,res)=>{
   const s=getSession(req,'customer');
   if(s && s.type==='customer'){            // never revoke an admin token here
     delete db.sessions[s.token];
-    db.revoked = db.revoked || {}; db.revoked[s.token] = Date.now(); saveDB();
+    db.revoked = db.revoked || {}; db.revoked[s.token] = Date.now(); await saveDB();
   }
   clearSessionCookie(req,res,'hss_token');
   res.json({ ok:true });
 });
 
 /* ---------------- admin auth ---------------- */
-app.post('/api/admin/login', (req,res)=>{
+app.post('/api/admin/login', async (req,res)=>{
   const { username, password } = req.body||{};
   const a=db.settings.admin;
   if(username!==a.username || hash(String(password||''),a.salt)!==a.passHash)
     return res.status(401).json({ error:'Wrong username or password' });
   const token=issueSession('admin','admin');
   const refresh=signToken({ t:'admin-refresh', id:'admin', iat:Date.now(), n:crypto.randomBytes(6).toString('hex') });
-  saveDB();
+  await saveDB();
   setSessionCookie(req,res,'hss_admin_token',token);
   setSessionCookie(req,res,'hss_admin_refresh',refresh);
   res.json({ ok:true, token, refresh, username:a.username });
 });
-app.post('/api/admin/refresh', (req,res)=>{
+app.post('/api/admin/refresh', async (req,res)=>{
   const c = parseCookies(req);
   const fromBody = req.body && req.body.refresh;
   const hdr = req.headers['x-hss-refresh'];          // still accepted (back-compat)
@@ -776,7 +814,7 @@ app.post('/api/admin/refresh', (req,res)=>{
       const token = issueSession('admin','admin');
       const fresh = signToken({ t:'admin-refresh', id:'admin', iat:Date.now(),
                                 n:crypto.randomBytes(6).toString('hex') });
-      saveDB();
+      await saveDB();
       setSessionCookie(req,res,'hss_admin_token',token);
       setSessionCookie(req,res,'hss_admin_refresh',fresh);
       return res.json({ ok:true, token, refresh: fresh });
@@ -788,31 +826,24 @@ app.post('/api/admin/refresh', (req,res)=>{
   const token = issueSession('admin','admin');
   const fresh = signToken({ t:'admin-refresh', id:'admin', iat:Date.now(),
                             n:crypto.randomBytes(6).toString('hex') });
-  saveDB();
+  await saveDB();
   setSessionCookie(req,res,'hss_admin_token',token);
   setSessionCookie(req,res,'hss_admin_refresh',fresh);
   res.json({ ok:true, token, refresh: fresh });
 });
 app.get('/api/admin/me', requireAdmin, (req,res)=>res.json({ ok:true, username:db.settings.admin.username }));
-app.post('/api/admin/logout', requireAdmin, (req,res)=>{
+app.post('/api/admin/logout', requireAdmin, async (req,res)=>{
   delete db.sessions[req.admin.token];
   db.revoked = db.revoked || {}; db.revoked[req.admin.token] = Date.now();
   const c = parseCookies(req);
   const rt = (req.body && req.body.refresh) || req.headers['x-hss-refresh'] || c.hss_admin_refresh;
   if(rt) db.revoked[rt] = Date.now();
-  saveDB();
+  await saveDB();
   clearSessionCookie(req,res,'hss_admin_token');
   clearSessionCookie(req,res,'hss_admin_refresh');
   res.json({ok:true});
 });
-app.post('/api/admin/password', requireAdmin, (req,res)=>{
-  const { current, next } = req.body||{};
-  const a=db.settings.admin;
-  if(hash(String(current||''),a.salt)!==a.passHash) return res.status(400).json({ error:'Current password is wrong' });
-  if(String(next||'').length<6) return res.status(400).json({ error:'New password must be at least 6 characters' });
-  a.salt=crypto.randomBytes(16).toString('hex'); a.passHash=hash(String(next),a.salt);
-  saveDB(); res.json({ ok:true });
-});
+
 
 /* ---------------- admin: dashboard ---------------- */
 app.get('/api/admin/stats', requireAdmin, (req,res)=>{
@@ -877,7 +908,7 @@ app.get('/api/admin/products', requireAdmin, (req,res)=>{
   const list=db.products.slice().sort((a,b)=>(a.sort||0)-(b.sort||0)||b.createdAt-a.createdAt).map(pubProduct);
   res.json({ products:list });
 });
-app.post('/api/admin/products', requireAdmin, (req,res)=>{
+app.post('/api/admin/products', requireAdmin, async (req,res)=>{
   const v=validateProductInput(req.body,true);
   if(v.error) return res.status(400).json({ error:v.error });
   let slug=slugify(req.body.slug||req.body.name);
@@ -886,10 +917,10 @@ app.post('/api/admin/products', requireAdmin, (req,res)=>{
   const p={ id:'p'+String(n).padStart(2,'0')+uid('').slice(0,4), slug,
     setNo:String(req.body.setNo||'').trim()||String(n).padStart(2,'0'),
     views:0, sold:0, createdAt:Date.now(), updatedAt:Date.now(), ...v.clean };
-  db.products.unshift(p); saveDB();
+  db.products.unshift(p); await saveDB();
   res.json({ ok:true, product:pubProduct(p) });
 });
-app.put('/api/admin/products/:id', requireAdmin, (req,res)=>{
+app.put('/api/admin/products/:id', requireAdmin, async (req,res)=>{
   const p=db.products.find(x=>x.id===req.params.id);
   if(!p) return res.status(404).json({ error:'Product not found' });
   const v=validateProductInput(req.body,false);
@@ -898,26 +929,26 @@ app.put('/api/admin/products/:id', requireAdmin, (req,res)=>{
   if(db.products.some(x=>x.slug===slug&&x.id!==p.id)) return res.status(400).json({ error:'Another product already uses this URL slug' });
   Object.assign(p, v.clean, { slug, updatedAt:Date.now() });
   if(req.body.setNo!==undefined) p.setNo=String(req.body.setNo).trim()||p.setNo;
-  saveDB(); res.json({ ok:true, product:pubProduct(p) });
+  await saveDB(); res.json({ ok:true, product:pubProduct(p) });
 });
-app.post('/api/admin/products/:id/duplicate', requireAdmin, (req,res)=>{
+app.post('/api/admin/products/:id/duplicate', requireAdmin, async (req,res)=>{
   const p=db.products.find(x=>x.id===req.params.id);
   if(!p) return res.status(404).json({ error:'Product not found' });
   const n=db.meta.productSeq++;
   const copy={ ...JSON.parse(JSON.stringify(p)), id:'p'+String(n).padStart(2,'0')+uid('').slice(0,4),
     slug:p.slug+'-copy-'+n, name:p.name+' (Copy)', published:false, views:0, sold:0,
     setNo:String(n).padStart(2,'0'), createdAt:Date.now(), updatedAt:Date.now() };
-  db.products.unshift(copy); saveDB();
+  db.products.unshift(copy); await saveDB();
   res.json({ ok:true, product:pubProduct(copy) });
 });
-app.delete('/api/admin/products/:id', requireAdmin, (req,res)=>{
+app.delete('/api/admin/products/:id', requireAdmin, async (req,res)=>{
   const i=db.products.findIndex(x=>x.id===req.params.id);
   if(i<0) return res.status(404).json({ error:'Product not found' });
   const [gone]=db.products.splice(i,1);
   // clean homepage refs
   const h=db.homepage;
   ['featuredIds','newIds','bestsellerIds'].forEach(k=>{ h[k]=(h[k]||[]).filter(id=>id!==gone.id); });
-  saveDB(); res.json({ ok:true });
+  await saveDB(); res.json({ ok:true });
 });
 
 /* ---------------- admin: categories ---------------- */
@@ -925,7 +956,7 @@ app.get('/api/admin/categories', requireAdmin, (req,res)=>{
   const counts={}; db.products.forEach(p=>p.categoryIds.forEach(c=>counts[c]=(counts[c]||0)+1));
   res.json({ categories: db.categories.slice().sort((a,b)=>(a.sort||0)-(b.sort||0)).map(c=>({...c, productCount:counts[c.id]||0})) });
 });
-app.post('/api/admin/categories', requireAdmin, (req,res)=>{
+app.post('/api/admin/categories', requireAdmin, async (req,res)=>{
   const name=String(req.body.name||'').trim();
   if(!name) return res.status(400).json({ error:'Category name is required' });
   let id=slugify(name);
@@ -933,9 +964,9 @@ app.post('/api/admin/categories', requireAdmin, (req,res)=>{
   const c={ id, slug:id, name, description:String(req.body.description||'').slice(0,500),
     image:String(req.body.image||''), sort:parseInt(req.body.sort)||db.categories.length+1,
     visible:req.body.visible!==false, createdAt:Date.now() };
-  db.categories.push(c); saveDB(); res.json({ ok:true, category:c });
+  db.categories.push(c); await saveDB(); res.json({ ok:true, category:c });
 });
-app.put('/api/admin/categories/:id', requireAdmin, (req,res)=>{
+app.put('/api/admin/categories/:id', requireAdmin, async (req,res)=>{
   const c=db.categories.find(x=>x.id===req.params.id);
   if(!c) return res.status(404).json({ error:'Category not found' });
   if(req.body.name && String(req.body.name).trim()) c.name=String(req.body.name).trim();
@@ -943,15 +974,15 @@ app.put('/api/admin/categories/:id', requireAdmin, (req,res)=>{
   if(req.body.image!==undefined) c.image=String(req.body.image);
   if(req.body.sort!==undefined) c.sort=parseInt(req.body.sort)||0;
   if(req.body.visible!==undefined) c.visible=!!req.body.visible;
-  saveDB(); res.json({ ok:true, category:c });
+  await saveDB(); res.json({ ok:true, category:c });
 });
-app.delete('/api/admin/categories/:id', requireAdmin, (req,res)=>{
+app.delete('/api/admin/categories/:id', requireAdmin, async (req,res)=>{
   const i=db.categories.findIndex(x=>x.id===req.params.id);
   if(i<0) return res.status(404).json({ error:'Category not found' });
   const [gone]=db.categories.splice(i,1);
   db.products.forEach(p=>p.categoryIds=p.categoryIds.filter(id=>id!==gone.id));
   db.homepage.collectionCategoryIds=(db.homepage.collectionCategoryIds||[]).filter(id=>id!==gone.id);
-  saveDB(); res.json({ ok:true });
+  await saveDB(); res.json({ ok:true });
 });
 
 /* ---------------- admin: orders ---------------- */
@@ -965,7 +996,7 @@ app.get('/api/admin/orders', requireAdmin, (req,res)=>{
   }
   res.json({ orders:list.map(sanitizeOrder), statuses:ORDER_STATUSES });
 });
-app.put('/api/admin/orders/:id', requireAdmin, (req,res)=>{
+app.put('/api/admin/orders/:id', requireAdmin, async (req,res)=>{
   const o=db.orders.find(x=>x.id===req.params.id);
   if(!o) return res.status(404).json({ error:'Order not found' });
   const { status, paymentStatus, note } = req.body||{};
@@ -994,7 +1025,7 @@ app.put('/api/admin/orders/:id', requireAdmin, (req,res)=>{
     if(paymentStatus==='paid' && o.status==='payment-pending'){ o.status='payment-verified'; changes.push('Status: payment-pending → payment-verified'); }
   }
   if(note && String(note).trim()) changes.push('Note: '+String(note).trim().slice(0,300));
-  if(changes.length){ o.history.push({ at:Date.now(), by:'admin', text:changes.join(' | ') }); o.updatedAt=Date.now(); saveDB(); }
+  if(changes.length){ o.history.push({ at:Date.now(), by:'admin', text:changes.join(' | ') }); o.updatedAt=Date.now(); await saveDB(); }
   res.json({ ok:true, order:sanitizeOrder(o) });
 });
 
@@ -1010,7 +1041,7 @@ app.get('/api/admin/customers', requireAdmin, (req,res)=>{
 app.get('/api/admin/homepage', requireAdmin, (req,res)=>{
   res.json({ homepage:db.homepage, products:db.products.map(p=>({id:p.id,name:p.name,cover:p.cover,published:p.published,stock:p.stock})), categories:db.categories });
 });
-app.put('/api/admin/homepage', requireAdmin, (req,res)=>{
+app.put('/api/admin/homepage', requireAdmin, async (req,res)=>{
   const b=req.body||{}, h=db.homepage;
   const validIds=(arr)=> (Array.isArray(arr)?arr:[]).filter(id=>db.products.some(p=>p.id===id));
   if(b.hero) ['badge','title','line1','line2','line3','line3Italic','subtitle','ctaText','ctaLink','cta2Text','cta2Link','image'].forEach(k=>{ if(b.hero[k]!==undefined) h.hero[k]=String(b.hero[k]).slice(0,500); });
@@ -1020,30 +1051,30 @@ app.put('/api/admin/homepage', requireAdmin, (req,res)=>{
   if(b.collectionCategoryIds) h.collectionCategoryIds=b.collectionCategoryIds.filter(id=>db.categories.some(c=>c.id===id));
   if(b.perksTitle!==undefined) h.perksTitle=String(b.perksTitle).slice(0,200);
   if(b.showSections) Object.assign(h.showSections, b.showSections);
-  saveDB(); res.json({ ok:true, homepage:h });
+  await saveDB(); res.json({ ok:true, homepage:h });
 });
 app.get('/api/admin/coupons', requireAdmin, (req,res)=>res.json({ coupons:db.coupons }));
-app.post('/api/admin/coupons', requireAdmin, (req,res)=>{
+app.post('/api/admin/coupons', requireAdmin, async (req,res)=>{
   const code=String(req.body.code||'').toUpperCase().trim();
   if(!/^[A-Z0-9]{3,20}$/.test(code)) return res.status(400).json({ error:'Code must be 3-20 letters/numbers' });
   if(db.coupons.some(c=>c.code===code)) return res.status(400).json({ error:'Code already exists' });
   const c={ code, type:req.body.type==='flat'?'flat':'percent', value:Number(req.body.value)||0,
     minOrder:Number(req.body.minOrder)||0, active:req.body.active!==false, usage:0, createdAt:Date.now() };
   if(!(c.value>0)) return res.status(400).json({ error:'Discount value must be greater than 0' });
-  db.coupons.push(c); saveDB(); res.json({ ok:true, coupon:c });
+  db.coupons.push(c); await saveDB(); res.json({ ok:true, coupon:c });
 });
-app.put('/api/admin/coupons/:code', requireAdmin, (req,res)=>{
+app.put('/api/admin/coupons/:code', requireAdmin, async (req,res)=>{
   const c=db.coupons.find(x=>x.code===req.params.code);
   if(!c) return res.status(404).json({ error:'Coupon not found' });
   if(req.body.value!==undefined) c.value=Number(req.body.value)||c.value;
   if(req.body.minOrder!==undefined) c.minOrder=Number(req.body.minOrder)||0;
   if(req.body.active!==undefined) c.active=!!req.body.active;
-  saveDB(); res.json({ ok:true, coupon:c });
+  await saveDB(); res.json({ ok:true, coupon:c });
 });
-app.delete('/api/admin/coupons/:code', requireAdmin, (req,res)=>{
+app.delete('/api/admin/coupons/:code', requireAdmin, async (req,res)=>{
   const i=db.coupons.findIndex(x=>x.code===req.params.code);
   if(i<0) return res.status(404).json({ error:'Coupon not found' });
-  db.coupons.splice(i,1); saveDB(); res.json({ ok:true });
+  db.coupons.splice(i,1); await saveDB(); res.json({ ok:true });
 });
 app.get('/api/admin/settings', requireAdmin, (req,res)=>{
   const s=JSON.parse(JSON.stringify(db.settings));
@@ -1051,7 +1082,7 @@ app.get('/api/admin/settings', requireAdmin, (req,res)=>{
   delete s.sessionSecret;   // never expose the session signing key
   res.json({ settings:s });
 });
-app.put('/api/admin/settings', requireAdmin, (req,res)=>{
+app.put('/api/admin/settings', requireAdmin, async (req,res)=>{
   const b=req.body||{}, s=db.settings;
   if(b.brand) ['name','short','tagline','est'].forEach(k=>{ if(b.brand[k]!==undefined) s.brand[k]=String(b.brand[k]).slice(0,200); });
   if(b.contact) ['mobile','whatsapp','email','instagram','facebook','address'].forEach(k=>{ if(b.contact[k]!==undefined) s.contact[k]=String(b.contact[k]).slice(0,300); });
@@ -1072,7 +1103,7 @@ app.put('/api/admin/settings', requireAdmin, (req,res)=>{
     if(b.seo.description!==undefined) s.seo.description=String(b.seo.description).slice(0,320); }
   if(b.announcement!==undefined) s.announcement=String(b.announcement).slice(0,200);
   if(b.lowStockAt!==undefined) s.lowStockAt=Math.max(1,Number(b.lowStockAt)||5);
-  saveDB(); res.json({ ok:true });
+  await saveDB(); res.json({ ok:true });
 });
 
 /* ---------------- admin: analytics ---------------- */
@@ -1121,17 +1152,17 @@ app.get('/api/admin/reviews', requireAdmin, (req,res)=>{
     .map(r=>({ ...r, productName:names[r.productId]||'(deleted set)' }));
   res.json({ reviews:list, pending:list.filter(r=>!r.approved).length });
 });
-app.put('/api/admin/reviews/:id', requireAdmin, (req,res)=>{
+app.put('/api/admin/reviews/:id', requireAdmin, async (req,res)=>{
   const r=(db.reviews||[]).find(x=>x.id===req.params.id);
   if(!r) return res.status(404).json({ error:'Review not found' });
   if(req.body.approved!==undefined) r.approved=!!req.body.approved;
   if(req.body.text!==undefined) r.text=String(req.body.text).slice(0,600);
-  saveDB(); res.json({ ok:true, review:r });
+  await saveDB(); res.json({ ok:true, review:r });
 });
-app.delete('/api/admin/reviews/:id', requireAdmin, (req,res)=>{
+app.delete('/api/admin/reviews/:id', requireAdmin, async (req,res)=>{
   const i=(db.reviews||[]).findIndex(x=>x.id===req.params.id);
   if(i<0) return res.status(404).json({ error:'Review not found' });
-  db.reviews.splice(i,1); saveDB(); res.json({ ok:true });
+  db.reviews.splice(i,1); await saveDB(); res.json({ ok:true });
 });
 
 /* ---------------- admin: abandoned carts ---------------- */
@@ -1139,8 +1170,8 @@ app.get('/api/admin/carts', requireAdmin, (req,res)=>{
   const list=(db.carts||[]).filter(c=>!c.recovered).sort((a,b)=>b.updatedAt-a.updatedAt).slice(0,200);
   res.json({ carts:list, value:list.reduce((s,c)=>s+c.value,0) });
 });
-app.delete('/api/admin/carts/:key', requireAdmin, (req,res)=>{
-  db.carts=(db.carts||[]).filter(c=>c.key!==req.params.key); saveDB(); res.json({ ok:true });
+app.delete('/api/admin/carts/:key', requireAdmin, async (req,res)=>{
+  db.carts=(db.carts||[]).filter(c=>c.key!==req.params.key); await saveDB(); res.json({ ok:true });
 });
 
 /* ---------------- admin: CMS content pages ---------------- */
@@ -1150,32 +1181,73 @@ app.get('/api/content/:key', (req,res)=>{
   res.json(c);
 });
 app.get('/api/admin/content', requireAdmin, (req,res)=>res.json({ content: db.content||{} }));
-app.put('/api/admin/content/:key', requireAdmin, (req,res)=>{
+app.put('/api/admin/content/:key', requireAdmin, async (req,res)=>{
   db.content=db.content||{};
   const cur=db.content[req.params.key]||{ title:'', body:'' };
   if(req.body.title!==undefined) cur.title=String(req.body.title).slice(0,160);
   if(req.body.body!==undefined) cur.body=String(req.body.body).slice(0,20000);
   cur.updatedAt=Date.now();
-  db.content[req.params.key]=cur; saveDB(); res.json({ ok:true, content:cur });
+  db.content[req.params.key]=cur; await saveDB(); res.json({ ok:true, content:cur });
 });
 
 /* ---------------- admin: change credentials ---------------- */
-app.post('/api/admin/password', requireAdmin, (req,res)=>{
+app.post('/api/admin/password', requireAdmin, async (req,res)=>{
   const { currentPassword, newPassword, username } = req.body||{};
-  const a=db.settings.admin;
-  if(hash(String(currentPassword||''), a.salt)!==a.passHash)
-    return res.status(400).json({ error:'Current password is incorrect' });
-  if(username && String(username).trim().length>=3) a.username=String(username).trim().slice(0,40);
-  if(newPassword){
-    if(String(newPassword).length<6) return res.status(400).json({ error:'New password must be at least 6 characters' });
-    a.salt=crypto.randomBytes(16).toString('hex');
-    a.passHash=hash(String(newPassword), a.salt);
-    db.revoked = db.revoked || {};
-    Object.keys(db.sessions).forEach(t=>{ if(db.sessions[t].type==='admin'){ db.revoked[t]=Date.now(); delete db.sessions[t]; } });
-  }
-  saveDB(); res.json({ ok:true, username:a.username, reloginRequired: !!newPassword });
-});
+  const a = db.settings.admin;
 
+  if(hash(String(currentPassword||''), a.salt)!==a.passHash){
+    return res.status(400).json({ error:'Current password is incorrect' });
+  }
+
+  if(username && String(username).trim().length>=3){
+    a.username = String(username).trim().slice(0,40);
+  }
+
+  if(newPassword){
+    if(String(newPassword).length<6){
+      return res.status(400).json({
+        error:'New password must be at least 6 characters'
+      });
+    }
+
+    a.salt = crypto.randomBytes(16).toString('hex');
+    a.passHash = hash(String(newPassword), a.salt);
+
+    // Revoke all existing admin access sessions
+    db.revoked = db.revoked || {};
+    Object.keys(db.sessions).forEach(t=>{
+      if(db.sessions[t].type==='admin'){
+        db.revoked[t] = Date.now();
+        delete db.sessions[t];
+      }
+    });
+
+    // Revoke all existing admin refresh grants
+    // Refresh grants are signed separately and are not stored
+    // in db.sessions, so revoke the currently supplied refresh grant.
+    const c = parseCookies(req);
+    const refreshToken =
+      (req.body && req.body.refresh) ||
+      req.headers['x-hss-refresh'] ||
+      c.hss_admin_refresh;
+
+    if(refreshToken){
+      db.revoked[refreshToken] = Date.now();
+    }
+
+    // Clear both admin cookies immediately
+    clearSessionCookie(req,res,'hss_admin_token');
+    clearSessionCookie(req,res,'hss_admin_refresh');
+  }
+
+  await saveDB();
+
+  res.json({
+    ok:true,
+    username:a.username,
+    reloginRequired:!!newPassword
+  });
+});
 /* ---------------- admin: upload ---------------- */
 const store = multer.diskStorage({
   destination:(r,f,cb)=>{ try{ fs.mkdirSync(UPLOAD_DIR,{recursive:true}); }catch(e){} cb(null,UPLOAD_DIR); },
@@ -1253,47 +1325,46 @@ app.get('/admin', (req,res)=>res.sendFile(path.join(__dirname,'public','admin.ht
 app.use('/api', (req,res)=>res.status(404).json({ error:'Not found' }));
 app.use((req,res)=>res.status(404).sendFile(path.join(__dirname,'public','404.html')));
 
-/* Bind the port with explicit error handling.
-
-   Previously a failed bind (EADDRINUSE — e.g. an orphaned server still holding
-   the port) emitted an unhandled 'error' event: the process printed nothing,
-   the event loop emptied and Node exited with code 0. Under a supervisor that
-   became a crash-restart loop, so the browser's admin requests were killed
-   mid-flight and the dashboard fell back to the login form. Fail loudly and
-   exit non-zero instead of dying silently. */
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log('HSS running on http://0.0.0.0:' + PORT);
-});
-
-server.on('error', (err) => {
-  if (err && err.code === 'EADDRINUSE') {
-    console.error(`[fatal] Port ${PORT} is already in use by another process.`);
-    console.error('[fatal] Stop it first:  pkill -f "node server.js"');
-  } else {
-    console.error('[fatal] Server failed to start:', err && err.message);
+/* Bind the port only after the persistence layer is ready. If DATABASE_URL is
+   configured but the approved PostgreSQL schema is missing, initialization
+   fails before the HTTP server starts; data/db.json remains untouched. */
+let server;
+async function startServer(){
+  try{
+    await initializePersistenceLayer();
+    initializeSessionSecret();
+    server = app.listen(PORT, '0.0.0.0', () => {
+      console.log('HSS running on http://0.0.0.0:' + PORT);
+    });
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`[fatal] Port ${PORT} is already in use by another process.`);
+        console.error('[fatal] Stop it first:  pkill -f "node server.js"');
+      } else {
+        console.error('[fatal] Server failed to start:', err && err.message);
+      }
+      process.exit(1);
+    });
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 70000;
+  }catch(err){
+    console.error('[fatal] Persistence initialization failed:', err && err.stack ? err.stack : err);
+    process.exit(1);
   }
-  process.exit(1);   // non-zero: the supervisor will not silently loop forever
-});
-
-// Keep-alive tuning so proxied connections are not dropped mid-request.
-server.keepAliveTimeout = 65000;
-server.headersTimeout = 70000;
-
-// Never let an unexpected error tear the process down silently.
+}
 process.on('uncaughtException', (err) => {
   console.error('[uncaught]', err && err.stack ? err.stack : err);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('[unhandled-rejection]', reason);
+  console.error('[unhandled-rejection]', reason && reason.stack ? reason.stack : reason);
 });
-
 function shutdown(sig) {
   console.log(`[hss] ${sig} received — closing server`);
-  // Exit non-zero so a supervisor treats this as "needs restart", not a
-  // deliberate shutdown. Use HSS_STOP=1 to stop for real.
   const code = process.env.HSS_STOP === '1' ? 0 : 130;
+  if(!server) process.exit(code);
   server.close(() => process.exit(code));
   setTimeout(() => process.exit(code), 3000).unref();
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+startServer();
