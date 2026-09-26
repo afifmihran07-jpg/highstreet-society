@@ -6,10 +6,16 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
 const compression = require('compression');
 const zlib = require('zlib');
 const { initialize: initializePersistence, persistState } = require('./db-postgres');
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY
+);
 
+const SUPABASE_BUCKET = 'product-images';
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'data', 'db.json');
@@ -1248,21 +1254,90 @@ app.post('/api/admin/password', requireAdmin, async (req,res)=>{
     reloginRequired:!!newPassword
   });
 });
-/* ---------------- admin: upload ---------------- */
-const store = multer.diskStorage({
-  destination:(r,f,cb)=>{ try{ fs.mkdirSync(UPLOAD_DIR,{recursive:true}); }catch(e){} cb(null,UPLOAD_DIR); },
-  filename:(r,f,cb)=>{ const ext=path.extname(f.originalname||'').toLowerCase().replace(/[^.a-z]/g,'')||'.jpg';
-    cb(null, Date.now().toString(36)+'-'+crypto.randomBytes(6).toString('hex')+ext); }
-});
-const upload = multer({ storage:store, limits:{fileSize:8*1024*1024},
-  fileFilter:(r,f,cb)=>/image\/(jpeg|png|webp|gif)/.test(f.mimetype)?cb(null,true):cb(new Error('Only image files allowed')) });
-app.post('/api/admin/upload', requireAdmin, (req,res)=>{
-  upload.array('images',8)(req,res,err=>{
-    if(err) return res.status(400).json({ error:err.message||'Upload failed' });
-    res.json({ ok:true, urls:(req.files||[]).map(f=>'/uploads/'+f.filename) });
-  });
+/* ---------------- admin: upload → Supabase Storage ---------------- */
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 8 * 1024 * 1024,
+    files: 8
+  },
+  fileFilter: (r, f, cb) =>
+    /image\/(jpeg|png|webp|gif)/.test(f.mimetype)
+      ? cb(null, true)
+      : cb(new Error('Only image files allowed'))
 });
 
+app.post('/api/admin/upload', requireAdmin, (req, res) => {
+  upload.array('images', 8)(req, res, async err => {
+    if (err) {
+      return res.status(400).json({
+        error: err.message || 'Upload failed'
+      });
+    }
+
+    try {
+      const files = req.files || [];
+
+      if (!files.length) {
+        return res.status(400).json({
+          error: 'No image files received'
+        });
+      }
+
+      const urls = [];
+
+      for (const file of files) {
+        const ext =
+          path.extname(file.originalname || '')
+            .toLowerCase()
+            .replace(/[^.a-z0-9]/g, '') || '.jpg';
+
+        const filename =
+          Date.now().toString(36) +
+          '-' +
+          crypto.randomBytes(6).toString('hex') +
+          ext;
+
+        const storagePath = `products/${filename}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from(SUPABASE_BUCKET)
+          .upload(storagePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('[supabase upload]', uploadError);
+
+          return res.status(500).json({
+            error: uploadError.message || 'Supabase upload failed'
+          });
+        }
+
+        const { data: publicData } = supabase.storage
+          .from(SUPABASE_BUCKET)
+          .getPublicUrl(storagePath);
+
+        urls.push(publicData.publicUrl);
+      }
+
+      res.json({
+        ok: true,
+        urls
+      });
+
+    } catch (e) {
+      console.error('[supabase upload]', e);
+
+      res.status(500).json({
+        error: e && e.message
+          ? e.message
+          : 'Upload failed'
+      });
+    }
+  });
+});
 /* ---------------- SEO ---------------- */
 app.get('/robots.txt', (req,res)=>{
   res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin/\nSitemap: '+req.protocol+'://'+req.get('host')+'/sitemap.xml\n');
