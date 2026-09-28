@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 require('dotenv').config();
 /* Highstreet Society â€” E-commerce backend (Express + file DB) */
 const express = require('express');
