@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 require('dotenv').config();
-/* Highstreet Society â€” E-commerce backend (Express + file DB) */
+/* Highstreet Society ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â E-commerce backend (Express + file DB) */
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -130,7 +130,7 @@ function pubProduct(p){
     sold:p.sold||0, views:p.views||0, sort:p.sort||0, seoTitle:p.seoTitle||'', seoDesc:p.seoDesc||'',
     createdAt:p.createdAt, updatedAt:p.updatedAt };
 }
-/* Cookie helpers â€” a second, storage-independent way to carry the session.
+/* Cookie helpers ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a second, storage-independent way to carry the session.
    The preview runs inside a sandboxed iframe where localStorage throws, so
    auth must also survive via an HttpOnly cookie. */
 /* ---------------- stateless session tokens ----------------
@@ -207,7 +207,7 @@ function isSecureReq(req){
 }
 function setSessionCookie(req,res,name,token){
   // SameSite=None is required for the cross-origin preview iframe, and browsers
-  // only honour SameSite=None together with Secure â€” so fall back to Lax on plain HTTP.
+  // only honour SameSite=None together with Secure ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â so fall back to Lax on plain HTTP.
   const secure = isSecureReq(req);
   const attrs = [
     `${name}=${encodeURIComponent(token)}`,
@@ -254,7 +254,7 @@ function getSession(req, want){
   if(!tok){ req._authFail='no-token'; return null; }
   // Revoked (logged out) tokens are recorded so they stop working everywhere.
   if(db.revoked && db.revoked[tok]){ req._authFail='revoked'; return null; }
-  // 1) Stateless, signed token â€” verifiable by ANY instance, no shared state.
+  // 1) Stateless, signed token ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â verifiable by ANY instance, no shared state.
   const claims = verifyToken(tok);
   if(claims) return { token: tok, type: claims.t, id: claims.id, createdAt: claims.iat };
   // 2) Fall back to a legacy in-memory session (tokens issued before this change).
@@ -455,10 +455,10 @@ app.put('/api/admin/designs/:id', requireAdmin, async (req,res)=>{
   if(!d) return res.status(404).json({ error:'Request not found' });
   const ch=[];
   if(req.body.status && DESIGN_STATUSES.includes(req.body.status) && req.body.status!==d.status){
-    ch.push(`Status: ${d.status} â†’ ${req.body.status}`); d.status=req.body.status;
+    ch.push(`Status: ${d.status} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${req.body.status}`); d.status=req.body.status;
   }
   if(req.body.quote!==undefined){ const q=req.body.quote===''||req.body.quote===null?null:Math.max(0,Number(req.body.quote)||0);
-    if(q!==d.quote){ ch.push('Quote: '+(q===null?'cleared':'à§³'+q)); d.quote=q; } }
+    if(q!==d.quote){ ch.push('Quote: '+(q===null?'cleared':'ÃƒÂ Ã‚Â§Ã‚Â³'+q)); d.quote=q; } }
   if(req.body.adminNote!==undefined) d.adminNote=String(req.body.adminNote).slice(0,1000);
   if(ch.length){ d.history.push({ at:Date.now(), by:'admin', text:ch.join(' | ') }); d.updatedAt=Date.now(); }
   await saveDB(); res.json({ ok:true, design:d });
@@ -528,7 +528,7 @@ app.post('/api/products/:key/view', async (req,res)=>{
 function couponFor(code, subtotal){
   const c = db.coupons.find(x=>x.code===String(code||'').toUpperCase().trim());
   if(!c || !c.active) return { error:'Invalid coupon code' };
-  if(subtotal < (c.minOrder||0)) return { error:`Minimum order à§³${c.minOrder} for this coupon` };
+  if(subtotal < (c.minOrder||0)) return { error:`Minimum order ÃƒÂ Ã‚Â§Ã‚Â³${c.minOrder} for this coupon` };
   const discount = c.type==='percent' ? Math.round(subtotal*c.value/100) : Math.min(c.value, subtotal);
   return { coupon:c, discount };
 }
@@ -1022,13 +1022,13 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req,res)=>{
         }
       }
     }
-    changes.push(`Status: ${o.status} â†’ ${status}`);
+    changes.push(`Status: ${o.status} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${status}`);
     o.status=status;
   }
   if(paymentStatus && ['unpaid','pending-verification','paid','failed','refunded'].includes(paymentStatus) && paymentStatus!==o.paymentStatus){
-    changes.push(`Payment: ${o.paymentStatus} â†’ ${paymentStatus}`);
+    changes.push(`Payment: ${o.paymentStatus} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${paymentStatus}`);
     o.paymentStatus=paymentStatus;
-    if(paymentStatus==='paid' && o.status==='payment-pending'){ o.status='payment-verified'; changes.push('Status: payment-pending â†’ payment-verified'); }
+    if(paymentStatus==='paid' && o.status==='payment-pending'){ o.status='payment-verified'; changes.push('Status: payment-pending ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ payment-verified'); }
   }
   if(note && String(note).trim()) changes.push('Note: '+String(note).trim().slice(0,300));
   if(changes.length){ o.history.push({ at:Date.now(), by:'admin', text:changes.join(' | ') }); o.updatedAt=Date.now(); await saveDB(); }
@@ -1254,7 +1254,7 @@ app.post('/api/admin/password', requireAdmin, async (req,res)=>{
     reloginRequired:!!newPassword
   });
 });
-/* ---------------- admin: upload â†’ Supabase Storage ---------------- */
+/* ---------------- admin: upload ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Supabase Storage ---------------- */
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -1346,12 +1346,12 @@ function generateSitemap(req){
   const base=req.protocol+'://'+req.get('host');
   const urls=['','/shop','/track','/about','/contact'].concat(Object.keys(db.content||{}).map(k=>'/policy/'+k));
   const xml=['<?xml version="1.0" encoding="UTF-8"?>','<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
-  urls.forEach(u=>xml.push(<url><loc></loc><changefreq>daily</changefreq></url>));
-  db.products.filter(p=>p.published).forEach(p=>xml.push(<url><loc>/product/</loc><changefreq>weekly</changefreq></url>));
+  urls.forEach(u=>xml.push('<url><loc>'+base+(u||'/')+'</loc><changefreq>daily</changefreq></url>'));
+  db.products.filter(p=>p.published).forEach(p=>xml.push('<url><loc>'+base+'/product/'+p.slug+'</loc><changefreq>weekly</changefreq></url>'));
   xml.push('</urlset>');
   return xml.join('\n');
-});
-
+  return xml.join('\n');
+}
 app.get('/sitemap.xml',(req,res)=>{
   res.type('application/xml').send(generateSitemap(req));
 });
@@ -1442,7 +1442,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('[unhandled-rejection]', reason && reason.stack ? reason.stack : reason);
 });
 function shutdown(sig) {
-  console.log(`[hss] ${sig} received â€” closing server`);
+  console.log(`[hss] ${sig} received ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â closing server`);
   const code = process.env.HSS_STOP === '1' ? 0 : 130;
   if(!server) process.exit(code);
   server.close(() => process.exit(code));
