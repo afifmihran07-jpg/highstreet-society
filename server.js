@@ -1340,7 +1340,7 @@ app.post('/api/admin/upload', requireAdmin, (req, res) => {
 });
 /* ---------------- SEO ---------------- */
 app.get('/robots.txt', (req,res)=>{
-  res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin/\nSitemap: '+req.protocol+'://'+req.get('host')+'/sitemap.xml\n');
+  res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin/\nSitemap: https://highstreet-society.onrender.com/mysites.xml\n');
 });
 function generateSitemap(req){
   const base=req.protocol+'://'+req.get('host');
