@@ -10,6 +10,12 @@ if(!cart.length){ location.href='/cart'; return; }
 let me=null;
 if(H.loggedIn()){ try{ me=(await H.api('/api/auth/me')).customer; }catch(e){} }
 
+// Always use FRESH settings here (payment numbers, delivery charges).
+await H.settingsReady;
+if(!H.settings){
+  el.innerHTML = H.empty('😕','Checkout is temporarily unavailable','We could not load delivery and payment options. Please refresh and try again.','<button class="btn btn-lime" onclick="location.reload()">Retry</button>');
+  return;
+}
 const S = H.settings, del=S.delivery, pay=S.payments;
 let items=[], subtotal=0, zone='inside', method = pay.cod.enabled?'cod':(pay.bkash.enabled?'bkash':(pay.nagad.enabled?'nagad':'cod'));
 let coupon=null, discount=0;
@@ -143,7 +149,7 @@ for(const it of H.getCart()){
     const q=Math.min(it.qty||1, p.allowBackorder?20:Math.max(1,avail));
     items.push({p,q,sz}); subtotal+=p.effPrice*q;
     ci.insertAdjacentHTML('beforeend',`<div class="citem" style="grid-template-columns:56px 1fr auto">
-      <img src="${H.esc(p.cover)}" style="width:56px;height:68px" alt="" onerror="this.src='/images/logo.png'">
+      <img src="${H.esc(H.img(p.cover,200))}" style="width:56px;height:68px" alt="" onerror="this.src='/images/logo.png'">
       <div><h3 style="font-size:14px">${H.esc(p.name)}</h3><div class="m">${sz?`Size <b class="szchip">${H.esc(sz)}</b> • `:''}Qty ${q}</div></div>
       <div class="r"><b style="font-size:14.5px">${H.money(p.effPrice*q)}</b></div></div>`);
   }catch(e){}

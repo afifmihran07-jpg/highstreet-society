@@ -24,7 +24,7 @@ document.getElementById('avail').addEventListener('change', e=>{ state.avail=e.t
 
 async function load(append=false){
   const grid=document.getElementById('grid'), more=document.getElementById('more');
-  if(!append) grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="e">◌</div><h3>Loading sets…</h3></div>`;
+  if(!append) grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="e"><span class="spin" aria-hidden="true"></span></div><h3>Loading sets…</h3></div>`;
   const p = new URLSearchParams({ page:state.page, limit:24, sort:state.sort });
   if(state.q) p.set('q',state.q);
   if(state.cat) p.set('category',state.cat);

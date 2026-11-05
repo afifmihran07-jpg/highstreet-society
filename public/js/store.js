@@ -92,6 +92,11 @@ H.tokenFallback = {
 
 H.money = n => '৳' + Number(n||0).toLocaleString('en-IN');
 H.esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Resized product images. Supabase originals are ~1 MB each; /img serves a
+   cached, resized copy (see server.js). Anything else is returned unchanged. */
+const SUPA_IMG = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\//;
+H.img = (url, w) => (url && SUPA_IMG.test(url)) ? '/img?w=' + w + '&u=' + encodeURIComponent(url) : (url || '');
+H.imgSet = url => (url && SUPA_IMG.test(url)) ? [400, 600, 900].map(w => H.img(url, w) + ' ' + w + 'w').join(', ') : '';
 
 H.api = async (path, opts={}) => {
   const headers = Object.assign({}, opts.headers||{});
@@ -106,14 +111,9 @@ H.api = async (path, opts={}) => {
     tok = HSS.store.get('hss_token') || null;
   }
   if(tok) headers['Authorization']='Bearer '+tok;
-  // Proxies in some hosting environments strip Authorization headers and
-  // cookies from cross-origin iframe traffic. Also carry the admin token as a
-  // query parameter so the session cannot be lost in transit.
-  if(tok){
-    // Applies to BOTH admin and customer sessions: some hosting proxies strip
-    // Authorization headers and cookies, so also carry the token in the URL.
-    path += (path.indexOf('?') < 0 ? '?' : '&') + '__t=' + encodeURIComponent(tok);
-  }
+  // The token travels ONLY in the Authorization header (plus the HttpOnly
+  // cookie). It used to be copied into every URL as ?__t=…, which leaked
+  // 30-day session tokens into server/proxy logs.
   // NOTE: deliberately NO custom request headers here.
   // A custom header (e.g. X-HSS-Refresh) turns every admin call into a
   // CORS-preflighted request. A preflight cached by the browser from an older
@@ -220,7 +220,7 @@ H.card = p => {
   const out = !(p.stock>0||p.allowBackorder);
   return `<div class="card">
     <a class="ph" href="/product/${p.slug}" aria-label="${H.esc(p.name)}">
-      <img src="${H.esc(p.cover)}" alt="${H.esc(p.name)}" loading="lazy" decoding="async" onerror="this.src='/images/logo.png'">
+      <img src="${H.esc(H.img(p.cover,600))}" ${H.imgSet(p.cover)?`srcset="${H.esc(H.imgSet(p.cover))}" sizes="(max-width:700px) 50vw, 300px"`:''} alt="${H.esc(p.name)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.removeAttribute('srcset');this.src='/images/logo.png'">
       <span class="tags">${out?'<span class="ptag out">SOLD OUT</span>':p.discountPct?'<span class="ptag off">-'+p.discountPct+'%</span>':p.isNew?'<span class="ptag new">NEW</span>':p.bestseller?'<span class="ptag best">BESTSELLER</span>':''}</span>
     </a>
     <button class="wish ${H.inWish(p.id)?'on':''}" data-w="${p.id}" onclick="event.preventDefault();HSS.toggleWish('${p.id}')" aria-label="wishlist">
@@ -253,11 +253,29 @@ const ICO = {
   menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'
 };
 
+/* Page chrome (announcement, header, menu, footer, tab bar, WhatsApp button).
+   Painted IMMEDIATELY — from cached settings when available — instead of after
+   the /api/settings round-trip. Previously every page showed a bare, header-less
+   document until that request finished (seconds on a cold Render instance),
+   which visitors saw as a flash/flicker on first load. */
 H.renderLayout = async (active='') => {
-  try{ const c=HSS.session.get('hss_settings'); if(c) H.settings=JSON.parse(c); }catch(e){}
-  try{ H.settings = await H.api('/api/settings'); HSS.session.set('hss_settings',JSON.stringify(H.settings)); }
-  catch(e){ if(!H.settings) H.settings = null; }
-  const s = H.settings||{};
+  let cached = null;
+  try{ const c=HSS.session.get('hss_settings'); if(c) cached=JSON.parse(c); }catch(e){}
+  H.settings = cached;
+  paintLayout(active, cached||{});
+  const refresh = H.api('/api/settings').then(fresh=>{
+    const json = JSON.stringify(fresh);
+    HSS.session.set('hss_settings', json);
+    H.settings = fresh;
+    if(json !== JSON.stringify(cached)) paintLayout(active, fresh);
+  }).catch(()=>{ if(!H.settings) H.settings = null; });
+  // Pages that read H.settings still get fresh settings on a first visit; with a
+  // cache they continue at once. Pages where stale values matter (checkout:
+  // payment numbers, delivery charges) await H.settingsReady explicitly.
+  H.settingsReady = refresh.then(()=>H.settings);
+  if(!cached) await refresh;
+};
+function paintLayout(active, s){
   if(s.announcement){ const a=document.getElementById('announce'); if(a) a.textContent=s.announcement; }
   const hdr = document.getElementById('hdr');
   if(hdr){
@@ -332,7 +350,7 @@ H.renderLayout = async (active='') => {
       document.body.appendChild(a); }
   }
   H.updateBadges();
-};
+}
 
 H.catName = id => (H._catMap[id]||id||'').toString();
 H.loadCats = async () => {

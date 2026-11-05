@@ -17,7 +17,7 @@ window.TRACK=async()=>{
   const id=document.getElementById('t_id').value.trim(), mobile=document.getElementById('t_mobile').value.trim();
   const res=document.getElementById('res');
   if(!id||!mobile) return H.toast('Enter Order ID and mobile number');
-  res.innerHTML=`<div class="empty"><div class="e">◌</div><h3>Looking up…</h3></div>`;
+  res.innerHTML=`<div class="empty"><div class="e"><span class="spin" aria-hidden="true"></span></div><h3>Looking up…</h3></div>`;
   try{
     const d=await H.api('/api/orders/track?id='+encodeURIComponent(id)+'&mobile='+encodeURIComponent(mobile));
     const o=d.order;
@@ -28,7 +28,7 @@ window.TRACK=async()=>{
         ${H.statusPill(o.status)}</div>
       ${o.status==='cancelled'?'<div class="empty"><div class="e">✕</div><h3>This order was cancelled</h3><p>Contact us if you need help re-ordering.</p></div>':`<div class="timeline">${STEPS.map((s,i)=>`
         <div class="tstep ${i<cur||o.status==='delivered'&&i<=cur?'done':i===cur?'now':''}"><span class="tdot">${i<cur||o.status==='delivered'&&i<=cur?'✓':(i+1)}</span><div><b>${s[1]}</b><span>${s[2]}</span></div></div>`).join('')}</div>`}
-      <div class="oitems" style="margin-top:6px">${o.items.map(i=>`<img src="${H.esc(i.cover)}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo.png'">`).join('')}</div>
+      <div class="oitems" style="margin-top:6px">${o.items.map(i=>`<img src="${H.esc(H.img(i.cover,200))}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo.png'">`).join('')}</div>
       <div class="sumrow" style="margin-top:12px"><span>Deliver to</span><span style="text-align:right">${H.esc(o.customer.name)}<br>${H.esc(o.customer.address)}</span></div>`;
   }catch(e){ res.innerHTML=H.empty('😕','Order not found',H.esc(e.message)); }
 };

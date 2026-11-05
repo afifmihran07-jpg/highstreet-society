@@ -66,7 +66,7 @@ try{
       // prefer a single poster (pure artwork) over the cover composite
       const art=c.image || (hit&&hit.posters&&hit.posters[0]) || (hit&&hit.cover) || '';
       return `<a class="ccard" href="/shop?cat=${c.id}">
-        ${art?`<img src="${H.esc(art)}" alt="" loading="lazy" onerror="this.remove()">`:''}
+        ${art?`<img src="${H.esc(H.img(art,600))}" alt="" loading="lazy" onerror="this.remove()">`:''}
         <div class="sh"></div><div class="tx"><h3>${H.esc(c.name)}</h3></div>
       </a>`;}).join('')}</div>
   </section></div>`}

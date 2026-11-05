@@ -5,7 +5,7 @@ await H.renderLayout('');
 const el = document.getElementById('content');
 
 const HEAD = `<div class="shophead"><h1>CUSTOM <span class="l">DESIGN</span></h1>
-  <p>Got your own artwork, photo or idea? We'll print it on premium board or apparel.</p></div>`;
+  <p>Got your own artwork, photo or idea? We'll print it as A4 posters on premium 3mm board.</p></div>`;
 
 function loginGate(){
   el.innerHTML = HEAD + `
@@ -38,9 +38,6 @@ async function main(){
           <option value="">Select a product type</option>
           <option>Custom poster set (6 posters)</option>
           <option>Single custom poster</option>
-          <option>Custom t-shirt</option>
-          <option>Custom hoodie</option>
-          <option>Custom combo / bundle</option>
           <option>Other (explain below)</option>
         </select></div>
       <div class="fgrid2">
@@ -110,7 +107,7 @@ async function main(){
       box.innerHTML=d.designs.map(x=>`<div class="dreq">
         <div class="dtop"><b>${H.esc(x.id)}</b>${H.statusPill(x.status)}</div>
         <div class="dmeta">${H.esc(x.productType)} • Qty ${x.quantity}</div>
-        <p>${H.esc(x.details).slice(0,150)}${x.details.length>150?'…':''}</p>
+        <p>${H.esc(x.details.slice(0,150))}${x.details.length>150?'…':''}</p>
         ${x.files.length?`<div class="dfiles">${x.files.map(f=>`<a href="${H.esc(f)}" target="_blank" rel="noopener">file</a>`).join('')}</div>`:''}
         ${x.quote!=null?`<div class="dquote">Quoted price: <b>${H.money(x.quote)}</b></div>`:''}
         ${x.adminNote?`<div class="dnote">${H.esc(x.adminNote)}</div>`:''}

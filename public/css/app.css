@@ -306,6 +306,13 @@ footer.site{border-top:1px solid var(--line);margin-top:64px;background:var(--bg
 /* empty */
 .empty{text-align:center;padding:70px 20px;color:var(--mut)}
 .empty .e{font-size:52px;margin-bottom:14px}
+/* Loading spinner: pure CSS, no font glyph (the old dotted-circle character is not in
+   the site fonts and renders as a box on devices without a fallback font). */
+.spin{display:inline-block;width:44px;height:44px;border:3px dotted currentColor;border-radius:50%;animation:spin 1.4s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+/* Keep the announcement bar height while its live text loads (no layout shift). */
+.announce:empty::before{content:"\00a0"}
 .empty h3{color:var(--ink);font-size:20px;margin-bottom:8px}
 /* toast */
 #toasts{position:fixed;bottom:86px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:10px;align-items:center;width:max-content;max-width:92vw}

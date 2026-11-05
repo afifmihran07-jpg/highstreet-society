@@ -1,12 +1,14 @@
 # HIGHSTREET SOCIETY — Official Store 🛒
 
-Production-ready, **mobile-first** Bangladesh e-commerce website. Posters, clothing, combos and custom design requests — all managed from one admin panel, no code changes needed.
+Production-ready, **mobile-first** Bangladesh e-commerce website for **A4 wall poster sets** — every set is **6 A4 posters on 3mm board for ৳420**, across seven categories: **Marvelverse, Anime, Football, Motorsport, Music, TV & Series and HER**. Products, categories, prices and homepage content are all managed from the admin panel; no code changes needed.
+
+> **Working on this code locally?** Start with [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) — `npm run export:catalog` then `npm run dev` gives you the live catalog locally with zero risk to production.
 
 ## 🔐 Admin Login
 
 - **URL:** `/admin`
-- **Username:** `hssadmin`
-- **Password:** `admin123`
+- **Local development / demo data only:** username `hssadmin`, password `admin123`.
+  **Production must use its own credentials** — if the live store still uses the demo login, change it now in Store Settings → Admin login & password.
 
 Credentials are stored **server-side only**, hashed with scrypt + per-account salt. They appear nowhere in frontend JavaScript. Change them in **Store Settings → Admin login & password** (changing the password logs out all admin sessions).
 
@@ -40,13 +42,11 @@ Follows the reference design: purple cosmic gradient, floating poster collage, *
 - Optional Landmark + delivery notes
 - Delivery charge auto-detects: Dhaka city thana → ৳70, elsewhere → ৳130 (both admin-editable). **Recalculated server-side** so it cannot be tampered with.
 
-## 🛍️ Product types
+## 🛍️ Products
 
-| Type | Behaviour |
-|---|---|
-| **Poster set** | Exactly 6 posters enforced; gallery with prev/next, swipe, tap-to-zoom; A4 + 3mm board shown |
-| **Clothing** | Per-size stock (S–XXL preset), size must be selected before add-to-cart, sold-out sizes disabled |
-| **Combo/bundle** | Bundle contents listed on the product page; optional sizes |
+HSS sells **A4 wall posters only**. Every product is a **poster set: exactly 6 posters**, A4, 3mm board, ৳420 per set (new products default to ৳420 in the admin form). Gallery with prev/next, swipe and tap-to-zoom.
+
+Legacy: the code still understands the old `clothing` (per-size stock) and `combo` (bundle) product types so any old records keep working, but the admin panel no longer offers them for new products.
 
 Stock is tracked **per size**, decremented on order and **restored on cancellation**.
 
@@ -70,14 +70,19 @@ Real links, not decoration — WhatsApp opens the app via `wa.me/8801879665602` 
 
 ## ▶️ Running
 
+**Local development** (Windows/macOS/Linux) — full guide in [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md):
+
 ```bash
-cd /home/user/hss
 npm install
-npm run seed     # demo reset only — NEVER on a live store with real orders
-npm start        # PORT=3000 by default
+npm run export:catalog   # read-only snapshot of the live catalog -> data/db.live.json
+npm run dev              # http://localhost:3000 on a local working copy; uploads stay local
+npm test                 # unit + integration tests
+npm run test:browser     # real-browser tests (installed Edge/Chrome), desktop + mobile
 ```
 
-Back up `data/db.json` + `public/uploads/` — that's your entire business.
+**Production** (Render): `npm start` (`run.sh` supervisor). Data lives in Supabase PostgreSQL (`DATABASE_URL`) and product images in Supabase Storage (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`).
+
+`npm run seed` rebuilds `data/db.json` with the **old demo catalog** — demo/reset only, never on a live store.
 
 ## ✅ Tested (real browser, mobile viewport)
 

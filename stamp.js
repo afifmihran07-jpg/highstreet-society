@@ -9,7 +9,12 @@ const path = require('path');
 const crypto = require('crypto');
 
 const PUB = path.join(__dirname, 'public');
-const hash = p => crypto.createHash('md5').update(fs.readFileSync(p)).digest('hex').slice(0, 8);
+// Hash with line endings normalised to LF. On Windows, git (core.autocrlf)
+// checks files out with CRLF, so hashing raw bytes produced different ?v=
+// values than Linux/production and dirtied all 15 HTML files on every run.
+const hash = p => crypto.createHash('md5')
+  .update(fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n'))
+  .digest('hex').slice(0, 8);
 
 const ver = {};
 for (const dir of ['js', 'css']) {

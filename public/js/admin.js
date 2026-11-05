@@ -237,12 +237,15 @@ async function renewSession(){
     || (HSS.tokenFallback && HSS.tokenFallback.readRefresh && HSS.tokenFallback.readRefresh())
     || undefined;
   const cur = HSS.memToken || HSS.store.get('hss_admin_token') || '';
-  const qs  = cur ? ('?__t=' + encodeURIComponent(cur)) : '';
-  const res = await fetch('/api/admin/refresh' + qs, {
+  // Current token goes in the BODY (never the URL, which would leak it into logs).
+  const body = {};
+  if(grant) body.refresh = grant;
+  if(cur) body.__t = cur;
+  const res = await fetch('/api/admin/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify(grant ? { refresh: grant } : {})
+    body: JSON.stringify(body)
   });
   if(!res.ok) { const e = new Error('renew failed'); e.status = res.status; throw e; }
   const r = await res.json().catch(()=>({}));
@@ -389,7 +392,7 @@ async function vPEdit(pane){
   let P=null;
   if(A.editId){ try{ P=(A.products||[]).find(x=>x.id===A.editId)||((await api('/api/admin/products')).products||[]).find(x=>x.id===A.editId); }catch(e){} }
   const E={ name:P?P.name:'', slug:P?P.slug:'', setNo:P?P.setNo:'', short:P?P.short:'', description:P?P.description:'',
-    price:P?P.price:'', salePrice:P&&P.salePrice?P.salePrice:'', stock:P?P.stock:20, sku:P?P.sku:'', sort:P?P.sort:0,
+    price:P?P.price:420, salePrice:P&&P.salePrice?P.salePrice:'', stock:P?P.stock:20, sku:P?P.sku:'', sort:P?P.sort:0,
     categoryIds:P?[...P.categoryIds]:[], tags:P?(P.tags||[]).join(', '):'', cover:P?P.cover:'', posters:P?[...P.posters]:[],
     featured:P?P.featured:false, isNew:P?P.isNew:true, bestseller:P?P.bestseller:false, published:P?P.published:true,
     allowBackorder:P?!!P.allowBackorder:false, seoTitle:P?P.seoTitle:'', seoDesc:P?P.seoDesc:'',
@@ -399,7 +402,7 @@ async function vPEdit(pane){
   pane.innerHTML=head(P?'Edit Product — '+esc(P.name):'Add New Product','Choose a product type, upload images, fill details, publish')+`
   <div class="fld full" style="margin-bottom:6px"><label>Product type *</label>
     <div class="typepick" id="typepick">
-      ${[['poster','🖼️ Poster Set','6 posters, A4, 3mm board'],['clothing','👕 Clothing','T-shirts, hoodies with sizes'],['combo','🎁 Combo / Bundle','Shirt + Pant, multi-item packs']].map(t=>
+      ${[['poster','🖼️ Poster Set','6 A4 posters, 3mm board'],['clothing','👕 Clothing','Legacy — T-shirts, hoodies with sizes'],['combo','🎁 Combo / Bundle','Legacy — multi-item packs']].filter(t=>t[0]==='poster'||E.type===t[0]).map(t=>
       `<button type="button" class="tp ${E.type===t[0]?'on':''}" data-t="${t[0]}"><b>${t[1]}</b><span>${t[2]}</span></button>`).join('')}
     </div></div>
   <div class="aform">
@@ -547,9 +550,23 @@ async function vCats(pane){
 async function vCustomers(pane){
   A.customers=(await api('/api/admin/customers')).customers;
   pane.innerHTML=head('Customers',A.customers.length+' registered account(s)')+`
-  <div class="panel"><table class="atable"><thead><tr><th>Name</th><th>Mobile</th><th>Address</th><th>Orders</th><th>Spent</th><th>Joined</th></tr></thead><tbody>
-  ${A.customers.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.mobile)}</td><td style="font-size:13px">${esc(c.address||'—')}</td><td>${c.orders}</td><td>${money(c.spent)}</td><td style="font-size:13px">${new Date(c.createdAt).toLocaleDateString()}</td></tr>`).join('')||'<tr><td colspan="6">No customer accounts yet.</td></tr>'}
-  </tbody></table><p style="color:var(--dim);font-size:13px;margin-top:10px">Guest orders (no account) still appear under Orders.</p></div>`;
+  <div class="panel"><table class="atable"><thead><tr><th>Name</th><th>Mobile</th><th>Address</th><th>Orders</th><th>Spent</th><th>Joined</th><th></th></tr></thead><tbody>
+  ${A.customers.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.mobile)}</td><td style="font-size:13px">${esc(c.address||'—')}</td><td>${c.orders}</td><td>${money(c.spent)}</td><td style="font-size:13px">${new Date(c.createdAt).toLocaleDateString()}</td><td><button class="abtn ghost sm" data-reset="${esc(c.id)}" title="Only after the customer messaged you from this number">🔑 Reset code</button></td></tr>`).join('')||'<tr><td colspan="7">No customer accounts yet.</td></tr>'}
+  </tbody></table><p style="color:var(--dim);font-size:13px;margin-top:10px">Guest orders (no account) still appear under Orders.</p>
+  <p style="color:var(--dim);font-size:13px">🔑 <b>Password resets:</b> only generate a code after the customer has messaged you on WhatsApp <b>from their registered number</b>. The code works once, for 30 minutes.</p>
+  <div id="resetbox"></div></div>`;
+  pane.querySelectorAll('[data-reset]').forEach(b=>b.onclick=async()=>{
+    const c=A.customers.find(x=>x.id===b.dataset.reset); if(!c) return;
+    if(!confirm(`Generate a password reset code for ${c.name} (${c.mobile})?\n\nOnly do this if they messaged you from ${c.mobile}.`)) return;
+    try{
+      const d=await api('/api/admin/customers/'+encodeURIComponent(c.id)+'/reset-code',{method:'POST'});
+      document.getElementById('resetbox').innerHTML=`<div class="panel" style="margin-top:12px">
+        <b>Reset code for ${esc(c.name)} (${esc(d.mobile)}):</b>
+        <div style="font-size:26px;font-weight:800;letter-spacing:.15em;margin:8px 0">${esc(d.code)}</div>
+        <p style="color:var(--dim);font-size:13px;margin:0 0 10px">Valid ${d.validMinutes} minutes, single use. Send it only to ${esc(d.mobile)}.</p>
+        <a class="abtn" href="${esc(d.whatsappUrl)}" target="_blank" rel="noopener">Send on WhatsApp</a></div>`;
+    }catch(e){ toast(e.message||'Could not create a reset code'); }
+  });
 }
 
 /* ---------- homepage CMS ---------- */
@@ -890,7 +907,7 @@ async function runView(pane){
    Returns true when the session is usable again. Never renders the login form. */
 async function run(){
   const pane=document.getElementById('pane');
-  pane.innerHTML='<div class="empty"><div class="e">◌</div><h3>Loading…</h3></div>';
+  pane.innerHTML='<div class="empty"><div class="e"><span class="spin" aria-hidden="true"></span></div><h3>Loading…</h3></div>';
   try{
     await runView(pane);
     labelTables();

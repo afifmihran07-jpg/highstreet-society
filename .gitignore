@@ -2,3 +2,15 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Local development data (see docs/LOCAL_DEVELOPMENT.md)
+data/db.live.json
+data/db.local.json
+data/*.tmp*
+data/db.backup.json
+backups/
+# Local admin uploads (production uploads live in Supabase Storage)
+public/uploads/*
+!public/uploads/.gitkeep
+# Browser test artefacts
+tests/browser/artifacts/

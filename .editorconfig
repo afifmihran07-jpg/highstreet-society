@@ -1,0 +1,10 @@
+# Keep every editor saving files as plain UTF-8 (no BOM).
+# Two past commits re-saved files through Windows-1252 and garbled the site
+# ("â€”" instead of "—"); tests/encoding.test.js now guards against that.
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+indent_size = 2

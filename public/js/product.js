@@ -40,12 +40,12 @@ try{
   <div class="pdp">
     <div class="gal">
       <div class="gmain" onclick="POPEN(${0})" id="gmain">
-        <img id="gimg" src="${H.esc(GIMGS[0])}" alt="${H.esc(P.name)}" fetchpriority="high" onerror="this.src='/images/logo.png'">
+        <img id="gimg" src="${H.esc(H.img(GIMGS[0],900))}" alt="${H.esc(P.name)}" fetchpriority="high" onerror="this.src='/images/logo.png'">
         <span class="count" id="gcount">1 / ${GIMGS.length} — Cover</span>
         <button class="gnav l" onclick="event.stopPropagation();GNAV(-1)">‹</button>
         <button class="gnav r" onclick="event.stopPropagation();GNAV(1)">›</button>
       </div>
-      <div class="gthumbs" id="gthumbs">${GIMGS.map((g,i)=>`<button class="${i===0?'on':''}" data-i="${i}" aria-label="view ${i===0?'cover':'poster '+(i)}"><img src="${H.esc(g)}" alt="" loading="lazy" onerror="this.src='/images/logo.png'"></button>`).join('')}</div>
+      <div class="gthumbs" id="gthumbs">${GIMGS.map((g,i)=>`<button class="${i===0?'on':''}" data-i="${i}" aria-label="view ${i===0?'cover':'poster '+(i)}"><img src="${H.esc(H.img(g,200))}" alt="" loading="lazy" onerror="this.src='/images/logo.png'"></button>`).join('')}</div>
       <div class="ghint">${P.type==='poster'?'1 set = 6 posters · tap to zoom':'Tap to zoom'}</div>
     </div>
     <div class="pinfo">
@@ -91,7 +91,7 @@ try{
 
   window.GNAV = dd => {
     gidx=(gidx+dd+GIMGS.length)%GIMGS.length;
-    document.getElementById('gimg').src=GIMGS[gidx];
+    document.getElementById('gimg').src=H.img(GIMGS[gidx],900);
     document.getElementById('gmain').setAttribute('onclick',`POPEN(${gidx})`);
     document.getElementById('gcount').textContent=(gidx+1)+' / '+GIMGS.length+(gidx===0?' — Cover':' — Poster '+gidx);
     document.querySelectorAll('#gthumbs button').forEach(b=>b.classList.toggle('on',+b.dataset.i===gidx));

@@ -7,7 +7,12 @@
     "serve": "node stamp.js && node server.js",
     "stamp": "node stamp.js",
     "seed": "node seed.js",
-    "migrate:db": "node scripts/migrate-db.js"
+    "migrate:db": "node scripts/migrate-db.js",
+    "dev": "node scripts/dev.js",
+    "dev:reset": "node scripts/dev.js --reset --no-start",
+    "export:catalog": "node scripts/export-live-catalog.js",
+    "test": "node --test \"tests/*.test.js\"",
+    "test:browser": "node tests/browser/run.js"
   },
   "keywords": [],
   "author": "",
@@ -21,5 +26,8 @@
     "multer": "^2.4.0",
     "pg": "^8.16.3",
     "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
   }
 }

@@ -18,12 +18,12 @@ async function boot(){
   if(tab==='profile'){
     renderProfile(pane, false);
   } else {
-    pane.innerHTML=`<div class="empty"><div class="e">◌</div><h3>Loading orders…</h3></div>`;
+    pane.innerHTML=`<div class="empty"><div class="e"><span class="spin" aria-hidden="true"></span></div><h3>Loading orders…</h3></div>`;
     try{
       const d=await H.api('/api/orders/mine');
       if(!d.orders.length){ pane.innerHTML=H.empty('📦','No orders yet','Your orders will show up here.','<a class="btn btn-lime" href="/shop">Shop sets</a>'); return; }
       pane.innerHTML=d.orders.map(o=>`<div class="obox"><div class="oh"><b>${H.esc(o.id)}</b>${H.statusPill(o.status)}</div>
-        <div class="oitems">${o.items.map(i=>`<a href="/product/${i.slug}"><img src="${H.esc(i.cover)}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo.png'"></a>`).join('')}</div>
+        <div class="oitems">${o.items.map(i=>`<a href="/product/${i.slug}"><img src="${H.esc(H.img(i.cover,200))}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo.png'"></a>`).join('')}</div>
         <div class="sumrow"><span>${new Date(o.createdAt).toLocaleString()} • ${o.items.reduce((s,i)=>s+i.qty,0)} item(s) • ${o.paymentMethod.toUpperCase()}</span><b>${H.money(o.total)}</b></div>
         <div class="arow" style="margin-top:10px;display:flex;gap:10px"><a class="btn btn-ghost btn-sm" href="/track?id=${o.id}&mobile=${o.customer.mobile}">Track</a><button class="btn btn-ghost btn-sm" onclick='REORDER(${JSON.stringify(o.items.map(i=>({id:i.productId,qty:i.qty})))})'>Reorder</button></div>
       </div>`).join('');
@@ -63,76 +63,55 @@ function loginView(mode='login'){
   window.FORGOT=()=>forgotView();
 }
 
-/* ---- Forgot / reset password (uses the existing customer auth) ---- */
+/* ---- Forgot / reset password ----
+   Reset needs a one-time code from HSS (sent on WhatsApp after the customer
+   messages us from their registered number). The old flow let anyone reset
+   any account just by typing its mobile number. */
 function forgotView(){
+  const c = (H.settings && H.settings.contact) || {};
+  const waMsg = c.whatsapp ? 'https://wa.me/' + H.waNumber(c.whatsapp) + '?text=' +
+    encodeURIComponent('Hi HSS, I forgot my account password. Please send me a reset code.') : '';
   el.innerHTML=`<div class="centerbox"><div class="panel" style="margin-top:34px">
     <h2 style="text-align:center">Reset password ✦</h2>
-    <p style="text-align:center;color:var(--mut);font-size:14px;margin:-8px 0 20px">
-      Enter your registered mobile number to set a new password.</p>
+    <p style="text-align:center;color:var(--mut);font-size:14px;margin:-8px 0 16px">
+      <b>Step 1.</b> Message us on WhatsApp <b>from your registered mobile number</b> — we will send you a one-time reset code (valid 30 minutes).</p>
+    ${waMsg?`<a class="btn btn-ghost btn-block" id="f_wa" href="${H.esc(waMsg)}" target="_blank" rel="noopener">Request a code on WhatsApp</a>`:''}
+    <p style="text-align:center;color:var(--mut);font-size:14px;margin:18px 0 12px"><b>Step 2.</b> Enter the code and choose a new password.</p>
     <div id="f_err" class="cmsg err" style="display:none"></div>
-    <div class="fld"><label>Mobile number *</label>
-      <input id="f_mobile" inputmode="numeric" maxlength="11" placeholder="01XXXXXXXXX"></div>
-    <button class="btn btn-lime btn-block" id="f_go" onclick="FGO()">Continue</button>
+    <div class="fld"><label>Registered mobile number *</label>
+      <input id="f_mobile" inputmode="numeric" maxlength="11" placeholder="01XXXXXXXXX" autocomplete="tel"></div>
+    <div class="fld"><label>Reset code *</label>
+      <input id="f_code" maxlength="9" placeholder="XXXX-XXXX" autocomplete="one-time-code" style="text-transform:uppercase;letter-spacing:.12em"></div>
+    <div class="fld"><label>New password *</label>
+      <input id="f_pw" type="password" placeholder="At least 4 characters" autocomplete="new-password"></div>
+    <div class="fld"><label>Confirm new password *</label>
+      <input id="f_pw2" type="password" placeholder="Repeat password" autocomplete="new-password"></div>
+    <button class="btn btn-lime btn-block" id="f_go" onclick="FGO()">Save new password</button>
     <p style="text-align:center;margin-top:16px;font-size:14px">
       <a href="#" onclick="event.preventDefault();BACKLOGIN()" style="color:var(--lime);font-weight:800">← Back to login</a></p>
   </div></div>`;
   window.BACKLOGIN=()=>loginView('login');
   window.FGO=async()=>{
     const mobile=document.getElementById('f_mobile').value.trim();
+    const code=document.getElementById('f_code').value.trim();
+    const pw=document.getElementById('f_pw').value;
+    const pw2=document.getElementById('f_pw2').value;
     const err=document.getElementById('f_err');
     const btn=document.getElementById('f_go');
+    const fail=m=>{ err.textContent=m; err.style.display='block'; };
     err.style.display='none';
-    if(!/^01[3-9]\d{8}$/.test(mobile)){
-      err.textContent='Please enter a valid 11-digit mobile number'; err.style.display='block'; return;
-    }
-    btn.disabled=true; btn.textContent='Checking…';
-    try{
-      const d=await H.api('/api/auth/forgot',{method:'POST',body:{mobile}});
-      if(d.resetToken){ resetView(d.resetToken, mobile); }
-      else{
-        // No account: identical wording, so numbers can't be probed.
-        err.textContent=d.message||'If this mobile number has an account, you can now set a new password.';
-        err.style.display='block';
-        btn.disabled=false; btn.textContent='Continue';
-      }
-    }catch(e){
-      err.textContent=e.message; err.style.display='block';
-      btn.disabled=false; btn.textContent='Continue';
-    }
-  };
-}
-
-function resetView(resetToken, mobile){
-  el.innerHTML=`<div class="centerbox"><div class="panel" style="margin-top:34px">
-    <h2 style="text-align:center">Set a new password ✦</h2>
-    <p style="text-align:center;color:var(--mut);font-size:14px;margin:-8px 0 20px">
-      For ${H.esc(mobile)}</p>
-    <div id="r_err" class="cmsg err" style="display:none"></div>
-    <div class="fld"><label>New password *</label>
-      <input id="r_pw" type="password" placeholder="At least 4 characters"></div>
-    <div class="fld"><label>Confirm new password *</label>
-      <input id="r_pw2" type="password" placeholder="Repeat password"></div>
-    <button class="btn btn-lime btn-block" id="r_go" onclick="RGO()">Save new password</button>
-    <p style="text-align:center;margin-top:16px;font-size:14px">
-      <a href="#" onclick="event.preventDefault();BACKLOGIN()" style="color:var(--lime);font-weight:800">← Back to login</a></p>
-  </div></div>`;
-  window.BACKLOGIN=()=>loginView('login');
-  window.RGO=async()=>{
-    const pw=document.getElementById('r_pw').value;
-    const pw2=document.getElementById('r_pw2').value;
-    const err=document.getElementById('r_err');
-    const btn=document.getElementById('r_go');
-    err.style.display='none';
-    if(pw.length<4){ err.textContent='Password must be at least 4 characters'; err.style.display='block'; return; }
-    if(pw!==pw2){ err.textContent='Both passwords must match'; err.style.display='block'; return; }
+    if(!/^01[3-9]\d{8}$/.test(mobile)) return fail('Please enter a valid 11-digit mobile number');
+    if(code.replace(/[^a-z0-9]/gi,'').length!==8) return fail('Please enter the 8-character reset code we sent you');
+    if(pw.length<4) return fail('Password must be at least 4 characters');
+    if(pw!==pw2) return fail('Both passwords must match');
     btn.disabled=true; btn.textContent='Saving…';
     try{
-      const d=await H.api('/api/auth/reset',{method:'POST',body:{resetToken,password:pw}});
+      const d=await H.api('/api/auth/reset',{method:'POST',body:{mobile,code,password:pw}});
       HSS.store.set('hss_token', d.token);
       H.toast('Password updated — you are signed in',true);
       boot();
     }catch(e){
-      err.textContent=e.message; err.style.display='block';
+      fail(e.message);
       btn.disabled=false; btn.textContent='Save new password';
     }
   };

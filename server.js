@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 require('dotenv').config();
-/* Highstreet Society ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â E-commerce backend (Express + file DB) */
+/* Highstreet Society — E-commerce backend (Express + file DB) */
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -10,15 +10,58 @@ const { createClient } = require('@supabase/supabase-js');
 const compression = require('compression');
 const zlib = require('zlib');
 const { initialize: initializePersistence, persistState } = require('./db-postgres');
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SECRET_KEY
-);
-
+/* ---------------- environment & local-development safety ----------------
+   Render sets RENDER=true on every service; NODE_ENV=production is the
+   generic signal for any other host. Production behaviour is unchanged:
+   uploads go to Supabase Storage and DATABASE_URL is honoured.
+   Anywhere else (a developer machine) the server refuses to write to remote
+   production resources unless HSS_ALLOW_REMOTE_WRITES=1 is set explicitly. */
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+const ALLOW_REMOTE_WRITES = process.env.HSS_ALLOW_REMOTE_WRITES === '1';
+// Where admin product-image uploads go: 'supabase' (production default) or
+// 'local' (public/uploads — default everywhere else).
+const UPLOAD_STORAGE = String(process.env.UPLOAD_STORAGE || (IS_PRODUCTION ? 'supabase' : 'local')).toLowerCase();
 const SUPABASE_BUCKET = 'product-images';
+let supabase = null;
+function getSupabase() {
+  if (!supabase) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
+      throw new Error('Supabase Storage is not configured (SUPABASE_URL / SUPABASE_SECRET_KEY missing)');
+    }
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+  }
+  return supabase;
+}
+function isLocalDatabaseUrl(url) {
+  try { return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(new URL(url).hostname); }
+  catch (_) { return false; }
+}
+/* Returns a list of fatal configuration problems (never includes secret values). */
+function localSafetyProblems() {
+  const problems = [];
+  if (!['local', 'supabase'].includes(UPLOAD_STORAGE)) {
+    problems.push(`UPLOAD_STORAGE must be "local" or "supabase" (got "${UPLOAD_STORAGE}").`);
+  }
+  if (IS_PRODUCTION || ALLOW_REMOTE_WRITES) return problems;
+  if (process.env.DATABASE_URL && !isLocalDatabaseUrl(process.env.DATABASE_URL)) {
+    problems.push('DATABASE_URL points at a remote database, but this is not a production environment. ' +
+      'Local runs must not write to production. Remove DATABASE_URL (use the JSON snapshot via `npm run dev`), ' +
+      'point it at a local Postgres, or set HSS_ALLOW_REMOTE_WRITES=1 if you really intend this.');
+  }
+  if (UPLOAD_STORAGE === 'supabase') {
+    problems.push('UPLOAD_STORAGE=supabase outside production would upload into the production bucket. ' +
+      'Use UPLOAD_STORAGE=local, or set HSS_ALLOW_REMOTE_WRITES=1 if you really intend this.');
+  }
+  return problems;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_PATH = path.join(__dirname, 'data', 'db.json');
+// HSS_DATA_FILE lets local development use its own working copy (e.g.
+// data/db.local.json) instead of the committed demo data/db.json.
+const DB_PATH = process.env.HSS_DATA_FILE
+  ? path.resolve(__dirname, process.env.HSS_DATA_FILE)
+  : path.join(__dirname, 'data', 'db.json');
 const UPLOAD_DIR = path.join(__dirname,'public','uploads');
 fs.mkdirSync(UPLOAD_DIR,{recursive:true});
 const GEO = JSON.parse(fs.readFileSync(path.join(__dirname,'data','bd-geo.json'),'utf8'));
@@ -30,32 +73,65 @@ GEO.forEach(d=>d.districts.forEach(t=>{ DISTRICTS[t.name.toLowerCase()] = { divi
 
 app.set('trust proxy', true);
 
-/* CORS for the sandboxed preview iframe.
-   A frame with sandbox="allow-scripts" (no allow-same-origin) has an opaque
-   origin, so even same-host API calls are cross-origin and send Origin: null.
-   Reflect the caller's origin and allow credentials so both the Bearer token
-   and the session cookie work there. */
+/* CORS — allow-list only.
+   The storefront and admin are served from the same origin as the API, so
+   they need no CORS at all. Previously this reflected ANY Origin (including
+   "null") with Allow-Credentials, which let any website read authenticated
+   API responses (admin orders, customer data) from a logged-in browser.
+   Extra trusted origins can be listed in CORS_ORIGINS (comma-separated). */
+const CORS_ORIGINS = new Set(String(process.env.CORS_ORIGINS || '')
+  .split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean));
 app.use((req,res,next)=>{
   const origin = req.headers.origin;
-  if(origin){
+  if(origin) res.setHeader('Vary', 'Origin');
+  if(origin && CORS_ORIGINS.has(origin)){
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Vary', 'Origin');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    // Reflect whatever custom headers the browser asks for (X-HSS-Refresh etc.)
-    // so a preflight can never block an authenticated admin request.
-    const want = req.headers['access-control-request-headers'];
-    res.setHeader('Access-Control-Allow-Headers',
-      want && String(want).trim() ? want : 'Content-Type,Authorization,X-HSS-Refresh');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-HSS-Refresh');
     res.setHeader('Access-Control-Expose-Headers', 'X-HSS-New-Token');
     res.setHeader('Access-Control-Max-Age', '0');   // never cache preflights
   }
   if(req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+/* Baseline security headers. (No CSP yet: the pages rely on inline scripts and
+   inline event handlers — see docs/PHASE1_STABILIZATION_REPORT.md.) */
+app.use((req,res,next)=>{
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  if(isSecureReq(req)) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  next();
+});
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
+// Express 5 leaves req.body undefined when a request has no JSON body; many
+// handlers read req.body.x directly and crashed with a 500 instead of a 400.
+app.use((req,res,next)=>{ if(req.body === undefined) req.body = {}; next(); });
 app.disable('x-powered-by');
+
+/* Small in-memory rate limiter for abuse-prone endpoints (login, reset,
+   register, orders, reviews). Per-process and per client IP; good enough for
+   a single Render instance. */
+const RATE = new Map();
+function rateLimit(name, max, windowMs, keyFn = req => req.ip){
+  return (req,res,next)=>{
+    const key = name + '|' + keyFn(req);
+    const now = Date.now();
+    let e = RATE.get(key);
+    if(!e || e.reset <= now){ e = { count:0, reset: now + windowMs }; RATE.set(key, e); }
+    e.count++;
+    if(e.count > max){
+      res.setHeader('Retry-After', Math.ceil((e.reset - now)/1000));
+      return res.status(429).json({ error:'Too many attempts. Please wait a few minutes and try again.' });
+    }
+    if(RATE.size > 20000){ for(const [k,v] of RATE) if(v.reset <= now) RATE.delete(k); }
+    next();
+  };
+}
 
 /* ---------------- DB ---------------- */
 let db;
@@ -130,7 +206,7 @@ function pubProduct(p){
     sold:p.sold||0, views:p.views||0, sort:p.sort||0, seoTitle:p.seoTitle||'', seoDesc:p.seoDesc||'',
     createdAt:p.createdAt, updatedAt:p.updatedAt };
 }
-/* Cookie helpers ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a second, storage-independent way to carry the session.
+/* Cookie helpers — a second, storage-independent way to carry the session.
    The preview runs inside a sandboxed iframe where localStorage throws, so
    auth must also survive via an HttpOnly cookie. */
 /* ---------------- stateless session tokens ----------------
@@ -182,10 +258,45 @@ function verifyToken(tok){
   if(Date.now() - data.iat > SESSION_TTL_MS) return null;
   return data;
 }
+/* Password-bound tokens. Each token carries `pv`, a fingerprint of the
+   account's CURRENT password hash. Changing a password therefore invalidates
+   every token issued before — previously stateless tokens stayed valid for
+   30 days after a password change, despite "logs out all sessions".
+   Admin tokens must carry a matching pv; customer tokens issued before this
+   change (no pv) stay valid until they expire. */
+function pvFor(type, id){
+  let ph = null;
+  if(type === 'admin') ph = db.settings && db.settings.admin && db.settings.admin.passHash;
+  else if(type === 'customer'){ const c = db.customers.find(x => x.id === id); ph = c && c.passHash; }
+  if(!ph) return '';
+  return crypto.createHmac('sha256', SESSION_SECRET).update('pv|' + type + '|' + ph).digest('hex').slice(0, 16);
+}
+function tokenCurrent(cl){
+  if(!cl) return false;
+  if(cl.t === 'admin' || cl.t === 'admin-refresh') return !!cl.pv && cl.pv === pvFor('admin', 'admin');
+  if(cl.t === 'customer') return !cl.pv || cl.pv === pvFor('customer', cl.id);
+  return true;
+}
+/* db.sessions (bookkeeping) and db.revoked grew forever — one row per login /
+   renewal / logout — and the whole db is held in memory and cloned on every
+   save. Entries older than the token lifetime are useless (verifyToken rejects
+   such tokens anyway), so drop them, at most once an hour. */
+let lastSessionPrune = 0;
+function pruneSessions(){
+  const now = Date.now();
+  if(now - lastSessionPrune < 60*60*1000) return;
+  lastSessionPrune = now;
+  for(const [t, s] of Object.entries(db.sessions || {})) if(!s || now - (s.createdAt || 0) > SESSION_TTL_MS) delete db.sessions[t];
+  for(const [t, at] of Object.entries(db.revoked || {})) if(now - (at || 0) > SESSION_TTL_MS) delete db.revoked[t];
+}
 function issueSession(type, id){
-  const token = signToken({ t:type, id, iat:Date.now(), n:crypto.randomBytes(6).toString('hex') });
+  pruneSessions();
+  const token = signToken({ t:type, id, iat:Date.now(), n:crypto.randomBytes(6).toString('hex'), pv:pvFor(type, id) });
   db.sessions[token] = { type, id, createdAt: Date.now() };   // legacy/bookkeeping
   return token;
+}
+function issueAdminRefresh(){
+  return signToken({ t:'admin-refresh', id:'admin', iat:Date.now(), n:crypto.randomBytes(6).toString('hex'), pv:pvFor('admin','admin') });
 }
 
 function parseCookies(req){
@@ -206,20 +317,20 @@ function isSecureReq(req){
   return req.secure || String(req.headers['x-forwarded-proto']||'').split(',')[0].trim() === 'https';
 }
 function setSessionCookie(req,res,name,token){
-  // SameSite=None is required for the cross-origin preview iframe, and browsers
-  // only honour SameSite=None together with Secure ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â so fall back to Lax on plain HTTP.
+  // SameSite=Lax: the cookie is not sent on cross-site requests, which (with
+  // the CORS allow-list) blocks CSRF / cross-site reads. It used to be
+  // SameSite=None for an old cross-origin preview iframe.
   const secure = isSecureReq(req);
   const attrs = [
     `${name}=${encodeURIComponent(token)}`,
-    'Path=/', 'HttpOnly', 'Max-Age='+(60*60*24*30),
-    secure ? 'SameSite=None' : 'SameSite=Lax'
+    'Path=/', 'HttpOnly', 'Max-Age='+(60*60*24*30), 'SameSite=Lax'
   ];
   if(secure) attrs.push('Secure');
   res.append('Set-Cookie', attrs.join('; '));
 }
 function clearSessionCookie(req,res,name){
   const secure = isSecureReq(req);
-  const attrs = [`${name}=`,'Path=/','HttpOnly','Max-Age=0', secure?'SameSite=None':'SameSite=Lax'];
+  const attrs = [`${name}=`,'Path=/','HttpOnly','Max-Age=0','SameSite=Lax'];
   if(secure) attrs.push('Secure');
   res.append('Set-Cookie', attrs.join('; '));
 }
@@ -234,7 +345,6 @@ function getSession(req, want){
   // Some hosting proxies strip Authorization headers and cookies from
   // cross-origin/iframe traffic. Accept the token from a query parameter or a
   // request-body field as well, so the session survives those environments.
-  if(!bearer && req.query && req.query.__t) bearer = String(req.query.__t);
   if(!bearer && req.body && req.body.__t)  bearer = String(req.body.__t);
   const c = parseCookies(req);
   const cookieTok = (want === 'admin')    ? (c.hss_admin_token || null)
@@ -247,16 +357,16 @@ function getSession(req, want){
   for(const cand of candidates){
     if(db.revoked && db.revoked[cand]) continue;
     const cl = verifyToken(cand);
-    if(cl) return { token: cand, type: cl.t, id: cl.id, createdAt: cl.iat };
+    if(cl && tokenCurrent(cl)) return { token: cand, type: cl.t, id: cl.id, createdAt: cl.iat };
     if(db.sessions[cand]) return { token: cand, ...db.sessions[cand] };
   }
   const tok = candidates[0] || null;
   if(!tok){ req._authFail='no-token'; return null; }
   // Revoked (logged out) tokens are recorded so they stop working everywhere.
   if(db.revoked && db.revoked[tok]){ req._authFail='revoked'; return null; }
-  // 1) Stateless, signed token ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â verifiable by ANY instance, no shared state.
+  // 1) Stateless, signed token — verifiable by ANY instance, no shared state.
   const claims = verifyToken(tok);
-  if(claims) return { token: tok, type: claims.t, id: claims.id, createdAt: claims.iat };
+  if(claims && tokenCurrent(claims)) return { token: tok, type: claims.t, id: claims.id, createdAt: claims.iat };
   // 2) Fall back to a legacy in-memory session (tokens issued before this change).
   if(db.sessions[tok]) return { token: tok, ...db.sessions[tok] };
   req._authFail = tok.indexOf('.')<0 ? 'legacy-token-not-in-memory' : 'bad-signature-or-expired';
@@ -372,7 +482,7 @@ app.get('/api/products/:slug/reviews', (req,res)=>{
   const avg = list.length ? Math.round((list.reduce((s,r)=>s+r.rating,0)/list.length)*10)/10 : 0;
   res.json({ reviews:list, count:list.length, average:avg });
 });
-app.post('/api/products/:slug/reviews', async (req,res)=>{
+app.post('/api/products/:slug/reviews', rateLimit('reviews', 10, 60*60*1000), async (req,res)=>{
   const p=db.products.find(x=>x.slug===req.params.slug);
   if(!p) return res.status(404).json({ error:'Product not found' });
   const name=String(req.body.name||'').trim(), text=String(req.body.text||'').trim();
@@ -388,7 +498,7 @@ app.post('/api/products/:slug/reviews', async (req,res)=>{
 });
 
 /* ---------------- public: abandoned cart capture ---------------- */
-app.post('/api/cart/track', async (req,res)=>{
+app.post('/api/cart/track', rateLimit('cart-track', 200, 15*60*1000), async (req,res)=>{
   try{
     const b=req.body||{};
     const items=Array.isArray(b.items)?b.items.slice(0,20):[];
@@ -396,7 +506,7 @@ app.post('/api/cart/track', async (req,res)=>{
     const key=String(b.key||'').slice(0,60) || uid('ac');
     db.carts=db.carts||[];
     let c=db.carts.find(x=>x.key===key);
-    const named=items.map(it=>{ const p=db.products.find(x=>x.id===it.id); return p?{ name:p.name, qty:it.qty||1, price:effPrice(p) }:null; }).filter(Boolean);
+    const named=items.map(it=>{ const p=db.products.find(x=>x.id===it.id); return p?{ name:p.name, qty:Math.max(1, Math.min(20, parseInt(it.qty)||1)), price:effPrice(p) }:null; }).filter(Boolean);
     const value=named.reduce((s,i)=>s+i.price*i.qty,0);
     if(!c){ c={ key, items:named, value, name:'', mobile:'', recovered:false, createdAt:Date.now(), updatedAt:Date.now() }; db.carts.unshift(c); }
     else { c.items=named; c.value=value; c.updatedAt=Date.now(); }
@@ -409,16 +519,20 @@ app.post('/api/cart/track', async (req,res)=>{
 
 /* ---------------- custom design requests ---------------- */
 const DESIGN_STATUSES = ['submitted','reviewing','quoted','approved','in-production','completed','rejected'];
+// File extension is derived from the validated MIME type, never from the
+// client-supplied name: "evil.html" sent as image/png must not be stored (and
+// then served from this origin) as an .html file.
+const MIME_EXT = { 'image/jpeg':'.jpg', 'image/png':'.png', 'image/webp':'.webp', 'image/gif':'.gif', 'application/pdf':'.pdf' };
 const designUpload = multer({
   storage: multer.diskStorage({
     destination:(r,f,cb)=>{ try{ fs.mkdirSync(UPLOAD_DIR,{recursive:true}); }catch(e){} cb(null,UPLOAD_DIR); },
-    filename:(r,f,cb)=>{ const ext=path.extname(f.originalname||'').toLowerCase().replace(/[^.a-z0-9]/g,'')||'.jpg';
+    filename:(r,f,cb)=>{ const ext=MIME_EXT[f.mimetype]||'.bin';
       cb(null,'design-'+Date.now().toString(36)+'-'+crypto.randomBytes(5).toString('hex')+ext); }
   }),
   limits:{ fileSize:8*1024*1024, files:5 },
-  fileFilter:(r,f,cb)=>/image\/(jpeg|png|webp|gif)|application\/pdf/.test(f.mimetype)?cb(null,true):cb(new Error('Upload images or PDF only'))
+  fileFilter:(r,f,cb)=>MIME_EXT[f.mimetype]?cb(null,true):cb(new Error('Upload images or PDF only'))
 });
-app.post('/api/designs', requireCustomer, async (req,res)=>{
+app.post('/api/designs', rateLimit('designs', 10, 60*60*1000), requireCustomer, async (req,res)=>{
   designUpload.array('files',5)(req,res,async err=>{
     if(err) return res.status(400).json({ error:err.message||'Upload failed' });
     const b=req.body||{};
@@ -455,10 +569,10 @@ app.put('/api/admin/designs/:id', requireAdmin, async (req,res)=>{
   if(!d) return res.status(404).json({ error:'Request not found' });
   const ch=[];
   if(req.body.status && DESIGN_STATUSES.includes(req.body.status) && req.body.status!==d.status){
-    ch.push(`Status: ${d.status} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${req.body.status}`); d.status=req.body.status;
+    ch.push(`Status: ${d.status} → ${req.body.status}`); d.status=req.body.status;
   }
   if(req.body.quote!==undefined){ const q=req.body.quote===''||req.body.quote===null?null:Math.max(0,Number(req.body.quote)||0);
-    if(q!==d.quote){ ch.push('Quote: '+(q===null?'cleared':'ÃƒÂ Ã‚Â§Ã‚Â³'+q)); d.quote=q; } }
+    if(q!==d.quote){ ch.push('Quote: '+(q===null?'cleared':'৳'+q)); d.quote=q; } }
   if(req.body.adminNote!==undefined) d.adminNote=String(req.body.adminNote).slice(0,1000);
   if(ch.length){ d.history.push({ at:Date.now(), by:'admin', text:ch.join(' | ') }); d.updatedAt=Date.now(); }
   await saveDB(); res.json({ ok:true, design:d });
@@ -528,7 +642,7 @@ app.post('/api/products/:key/view', async (req,res)=>{
 function couponFor(code, subtotal){
   const c = db.coupons.find(x=>x.code===String(code||'').toUpperCase().trim());
   if(!c || !c.active) return { error:'Invalid coupon code' };
-  if(subtotal < (c.minOrder||0)) return { error:`Minimum order ÃƒÂ Ã‚Â§Ã‚Â³${c.minOrder} for this coupon` };
+  if(subtotal < (c.minOrder||0)) return { error:`Minimum order ৳${c.minOrder} for this coupon` };
   const discount = c.type==='percent' ? Math.round(subtotal*c.value/100) : Math.min(c.value, subtotal);
   return { coupon:c, discount };
 }
@@ -541,7 +655,7 @@ app.post('/api/coupons/validate', (req,res)=>{
 
 /* ---------------- orders (public) ---------------- */
 const ORDER_STATUSES = ['pending','payment-pending','payment-verified','confirmed','processing','ready','shipped','delivered','cancelled'];
-app.post('/api/orders', optionalCustomer, async (req,res)=>{
+app.post('/api/orders', rateLimit('orders', 20, 60*60*1000), optionalCustomer, async (req,res)=>{
   try{
     const b = req.body||{};
     const name = String(b.name||'').trim();
@@ -569,14 +683,24 @@ app.post('/api/orders', optionalCustomer, async (req,res)=>{
     const trxId = String(b.trxId||'').trim();
     if((payMethod==='bkash'||payMethod==='nagad') && !trxId)
       return res.status(400).json({ error:'Please enter your bKash/Nagad Transaction ID (TrxID)' });
-    const itemsIn = Array.isArray(b.items) ? b.items : [];
+    const merged = new Map();
+    for(const it of (Array.isArray(b.items) ? b.items : []).slice(0, 50)){
+      if(!it || typeof it !== 'object') continue;
+      const size = String(it.size || '').trim();
+      const k = String(it.id) + '|' + size.toLowerCase();
+      const q = Math.max(1, Math.min(20, parseInt(it.qty) || 1));
+      const m = merged.get(k);
+      if(m) m.qty += q; else merged.set(k, { id: it.id, size, qty: q });
+    }
+    const itemsIn = [...merged.values()];
+    if(itemsIn.some(it => it.qty > 20)) return res.status(400).json({ error:'You can order at most 20 of the same set per order' });
     if(!itemsIn.length) return res.status(400).json({ error:'Your cart is empty' });
     const items=[]; let subtotal=0;
     for(const it of itemsIn){
       const p = db.products.find(x=>x.id===it.id && x.published);
       if(!p) return res.status(400).json({ error:'A product in your cart is no longer available' });
-      const qty = Math.max(1, Math.min(20, parseInt(it.qty)||1));
-      const size = String(it.size||'').trim();
+      const qty = it.qty;                      // merged + validated above (1–20)
+      const size = it.size;
       const sizes = p.sizes||[];
       if(sizes.length){
         if(!size) return res.status(400).json({ error:`Please choose a size for "${p.name}"` });
@@ -607,7 +731,7 @@ app.post('/api/orders', optionalCustomer, async (req,res)=>{
     const order = {
       id, items, subtotal, discount, coupon:couponCode,
       zone, deliveryCharge:charge, total,
-      customer:{ name, mobile, address, area, district, division,
+      customer:{ name: name.slice(0,80), mobile, address: address.slice(0,500), area, district, division,
         locality: locality.slice(0,120), landmark: landmark.slice(0,160),
         customerId: (sess&&sess.type==='customer')?sess.id:null },
       paymentMethod:payMethod, trxId: trxId||null,
@@ -646,7 +770,7 @@ function sanitizeOrder(o){
     paymentMethod:o.paymentMethod, trxId:o.trxId, paymentStatus:o.paymentStatus, status:o.status,
     notes:o.notes, createdAt:o.createdAt, updatedAt:o.updatedAt, history:o.history||[] };
 }
-app.get('/api/orders/track', (req,res)=>{
+app.get('/api/orders/track', rateLimit('track', 30, 15*60*1000), (req,res)=>{
   const id = String(req.query.id||'').trim().toUpperCase();
   const mobile = String(req.query.mobile||'').trim();
   if(!id || !mobile) return res.status(400).json({ error:'Order ID and mobile number are required' });
@@ -669,7 +793,7 @@ function pubCustomer(c){
     locality:c.locality||'', landmark:c.landmark||'' };
 }
 
-app.post('/api/auth/register', async (req,res)=>{
+app.post('/api/auth/register', rateLimit('register', 10, 60*60*1000), async (req,res)=>{
   const name=String(req.body.name||'').trim(), mobile=String(req.body.mobile||'').trim();
   const pw=String(req.body.password||''), address=String(req.body.address||'').trim(), area=String(req.body.area||'').trim();
   if(name.length<3) return res.status(400).json({ error:'Please enter your full name' });
@@ -685,7 +809,7 @@ app.post('/api/auth/register', async (req,res)=>{
   setSessionCookie(req,res,'hss_token',token);
   res.json({ ok:true, token, customer:pubCustomer(c) });
 });
-app.post('/api/auth/login', async (req,res)=>{
+app.post('/api/auth/login', rateLimit('login', 15, 15*60*1000), async (req,res)=>{
   const mobile=String(req.body.mobile||'').trim(), pw=String(req.body.password||'');
   const c=db.customers.find(x=>x.mobile===mobile);
   if(!c || hash(pw,c.salt)!==c.passHash) return res.status(400).json({ error:'Wrong mobile number or password' });
@@ -733,54 +857,80 @@ app.put('/api/auth/me', requireCustomer, async (req,res)=>{
   res.json({ ok:true, customer: pubCustomer(c) });
 });
 /* ---------- customer password reset ----------
-   Reuses the existing scrypt hashing + HMAC token signing. Two steps:
-   1) /api/auth/forgot  -> verifies the account exists and returns a short-lived
-      signed reset token. Always answers the same way so a mobile number can
-      never be probed for existence (no account enumeration).
-   2) /api/auth/reset   -> consumes that token and sets the new password. */
-const RESET_TTL_MS = 15 * 60 * 1000;
+   SECURITY: the old flow handed a valid reset token to ANYONE who typed a
+   registered mobile number (no SMS / no verification) — i.e. any account could
+   be taken over. HSS has no SMS gateway, so verification now happens through
+   the shop: the customer messages HSS on WhatsApp from their registered number,
+   the admin generates a one-time reset code (Admin → Customers → Reset code)
+   and sends it back. The customer enters mobile + code + new password.
+   Codes are stateless (HMAC of the customer's CURRENT password hash and a
+   30-minute time slot), valid 30–60 minutes, and become invalid the moment the
+   password changes (single use). No extra database fields are needed. */
+const RESET_SLOT_MS = 30 * 60 * 1000;
+const RESET_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // 32 chars, no 0/O/1/I
+function resetCodeFor(c, slot){
+  const h = crypto.createHmac('sha256', SESSION_SECRET).update('pwreset|' + c.id + '|' + c.passHash + '|' + slot).digest();
+  let code = '';
+  for(let i = 0; i < 8; i++) code += RESET_ALPHABET[h[i] & 31];
+  return code;
+}
+function normResetCode(code){ return String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function resetCodeValid(c, code){
+  const want = normResetCode(code);
+  if(want.length !== 8) return false;
+  const slot = Math.floor(Date.now() / RESET_SLOT_MS);
+  return [slot, slot - 1].some(sl => crypto.timingSafeEqual(Buffer.from(resetCodeFor(c, sl)), Buffer.from(want)));
+}
 
-app.post('/api/auth/forgot', (req,res)=>{
-  const mobile = String((req.body && req.body.mobile) || '').trim();
-  const generic = { ok:true, message:'If this mobile number has an account, you can now set a new password.' };
-  if(!validMobile(mobile)) return res.status(400).json({ error:'Please enter a valid 11-digit mobile number' });
-  const c = db.customers.find(x => x.mobile === mobile);
-  if(!c) return res.json(generic);                       // same shape, no token
-  const resetToken = signToken({ t:'pwreset', id:c.id, iat:Date.now(),
-                                 n:crypto.randomBytes(8).toString('hex') });
-  return res.json(Object.assign({}, generic, { resetToken }));
+app.post('/api/auth/forgot', rateLimit('forgot', 10, 15*60*1000), (req,res)=>{
+  const mobile = String(req.body.mobile || '').trim();
+  if(mobile && !validMobile(mobile)) return res.status(400).json({ error:'Please enter a valid 11-digit mobile number' });
+  // Same answer whether or not the number is registered (no account probing),
+  // and never a token.
+  const wa = (db.settings.contact && (db.settings.contact.whatsapp || db.settings.contact.mobile)) || '';
+  res.json({ ok:true, whatsapp: wa,
+    message:'To reset your password, message us on WhatsApp from your registered mobile number. ' +
+            'We will send you a one-time reset code (valid for 30 minutes).' });
 });
 
-app.post('/api/auth/reset', async (req,res)=>{
-  const tok = String((req.body && (req.body.resetToken || req.body.__t)) || '').trim();
-  const pw  = String((req.body && req.body.password) || '');
-  if(!tok) return res.status(400).json({ error:'Reset link is invalid. Please start again.' });
+app.post('/api/auth/reset',
+  rateLimit('reset-ip', 10, 15*60*1000),
+  rateLimit('reset-mobile', 8, 15*60*1000, req => String(req.body.mobile || '').trim()),
+  async (req,res)=>{
+  const mobile = String(req.body.mobile || '').trim();
+  const code = req.body.code;
+  const pw  = String(req.body.password || '');
+  if(!validMobile(mobile)) return res.status(400).json({ error:'Please enter your registered 11-digit mobile number' });
+  if(!normResetCode(code)) return res.status(400).json({ error:'Please enter the reset code we sent you' });
   if(pw.length < 4) return res.status(400).json({ error:'Password must be at least 4 characters' });
-  const claims = verifyToken(tok);
-  if(!claims || claims.t !== 'pwreset')
-    return res.status(400).json({ error:'Reset link is invalid. Please start again.' });
-  if(Date.now() - claims.iat > RESET_TTL_MS)
-    return res.status(400).json({ error:'Reset link has expired. Please start again.' });
-  if(db.revoked && db.revoked[tok])
-    return res.status(400).json({ error:'This reset link was already used.' });
-  const c = db.customers.find(x => x.id === claims.id);
-  if(!c) return res.status(400).json({ error:'Reset link is invalid. Please start again.' });
-
+  const c = db.customers.find(x => x.mobile === mobile);
+  if(!c || !resetCodeValid(c, code)) {
+    return res.status(400).json({ error:'This reset code is invalid or has expired. Please ask us for a new one.' });
+  }
   c.salt = crypto.randomBytes(16).toString('hex');
-  c.passHash = hash(pw, c.salt);
-  db.revoked = db.revoked || {};
-  db.revoked[tok] = Date.now();                          // single use
-  // end other sessions for this customer
+  c.passHash = hash(pw, c.salt);      // also invalidates the code and all older tokens (pv)
   Object.keys(db.sessions).forEach(t=>{
     if(db.sessions[t].type === 'customer' && db.sessions[t].id === c.id){
-      db.revoked[t] = Date.now(); delete db.sessions[t];
+      db.revoked = db.revoked || {}; db.revoked[t] = Date.now(); delete db.sessions[t];
     }
   });
   const token = issueSession('customer', c.id);
   await saveDB();
   setSessionCookie(req,res,'hss_token',token);
-  res.json({ ok:true, token,
-    customer:{ id:c.id, name:c.name, mobile:c.mobile, address:c.address, area:c.area } });
+  res.json({ ok:true, token, customer: pubCustomer(c) });
+});
+
+/* Admin: generate a one-time reset code for a customer (send it on WhatsApp). */
+app.post('/api/admin/customers/:id/reset-code', requireAdmin, (req,res)=>{
+  const c = db.customers.find(x => x.id === req.params.id);
+  if(!c) return res.status(404).json({ error:'Customer not found' });
+  const raw = resetCodeFor(c, Math.floor(Date.now() / RESET_SLOT_MS));
+  const code = raw.slice(0, 4) + '-' + raw.slice(4);
+  const msg = 'Highstreet Society: your password reset code is ' + code +
+    '. Enter it at /account → Forgot password within 30 minutes. If you did not ask for this, ignore this message.';
+  const num = String(c.mobile).replace(/\D/g, '').replace(/^0/, '880');
+  res.json({ ok:true, code, mobile:c.mobile, validMinutes:30,
+    whatsappUrl:'https://wa.me/' + num + '?text=' + encodeURIComponent(msg) });
 });
 
 app.post('/api/auth/logout', async (req,res)=>{
@@ -794,13 +944,13 @@ app.post('/api/auth/logout', async (req,res)=>{
 });
 
 /* ---------------- admin auth ---------------- */
-app.post('/api/admin/login', async (req,res)=>{
+app.post('/api/admin/login', rateLimit('admin-login', 10, 15*60*1000), async (req,res)=>{
   const { username, password } = req.body||{};
   const a=db.settings.admin;
   if(username!==a.username || hash(String(password||''),a.salt)!==a.passHash)
     return res.status(401).json({ error:'Wrong username or password' });
   const token=issueSession('admin','admin');
-  const refresh=signToken({ t:'admin-refresh', id:'admin', iat:Date.now(), n:crypto.randomBytes(6).toString('hex') });
+  const refresh=issueAdminRefresh();
   await saveDB();
   setSessionCookie(req,res,'hss_admin_token',token);
   setSessionCookie(req,res,'hss_admin_refresh',refresh);
@@ -812,14 +962,13 @@ app.post('/api/admin/refresh', async (req,res)=>{
   const hdr = req.headers['x-hss-refresh'];          // still accepted (back-compat)
   const tok = fromBody || hdr || c.hss_admin_refresh || null;
   let claims = tok ? verifyToken(tok) : null;
-  if(!claims || claims.t !== 'admin-refresh'){
+  if(!claims || claims.t !== 'admin-refresh' || !tokenCurrent(claims)){
     // Fall back to the current access token / cookie: if the caller can prove
     // they already hold a valid admin session, renewal is legitimate.
     const cur = getSession(req,'admin');
     if(cur && cur.type === 'admin'){
       const token = issueSession('admin','admin');
-      const fresh = signToken({ t:'admin-refresh', id:'admin', iat:Date.now(),
-                                n:crypto.randomBytes(6).toString('hex') });
+      const fresh = issueAdminRefresh();
       await saveDB();
       setSessionCookie(req,res,'hss_admin_token',token);
       setSessionCookie(req,res,'hss_admin_refresh',fresh);
@@ -830,8 +979,7 @@ app.post('/api/admin/refresh', async (req,res)=>{
   if(db.revoked && db.revoked[tok])
     return res.status(401).json({ error:'Admin login required', reason:'refresh-revoked' });
   const token = issueSession('admin','admin');
-  const fresh = signToken({ t:'admin-refresh', id:'admin', iat:Date.now(),
-                            n:crypto.randomBytes(6).toString('hex') });
+  const fresh = issueAdminRefresh();
   await saveDB();
   setSessionCookie(req,res,'hss_admin_token',token);
   setSessionCookie(req,res,'hss_admin_refresh',fresh);
@@ -1022,13 +1170,13 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req,res)=>{
         }
       }
     }
-    changes.push(`Status: ${o.status} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${status}`);
+    changes.push(`Status: ${o.status} → ${status}`);
     o.status=status;
   }
   if(paymentStatus && ['unpaid','pending-verification','paid','failed','refunded'].includes(paymentStatus) && paymentStatus!==o.paymentStatus){
-    changes.push(`Payment: ${o.paymentStatus} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${paymentStatus}`);
+    changes.push(`Payment: ${o.paymentStatus} → ${paymentStatus}`);
     o.paymentStatus=paymentStatus;
-    if(paymentStatus==='paid' && o.status==='payment-pending'){ o.status='payment-verified'; changes.push('Status: payment-pending ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ payment-verified'); }
+    if(paymentStatus==='paid' && o.status==='payment-pending'){ o.status='payment-verified'; changes.push('Status: payment-pending → payment-verified'); }
   }
   if(note && String(note).trim()) changes.push('Note: '+String(note).trim().slice(0,300));
   if(changes.length){ o.history.push({ at:Date.now(), by:'admin', text:changes.join(' | ') }); o.updatedAt=Date.now(); await saveDB(); }
@@ -1254,7 +1402,68 @@ app.post('/api/admin/password', requireAdmin, async (req,res)=>{
     reloginRequired:!!newPassword
   });
 });
-/* ---------------- admin: upload ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Supabase Storage ---------------- */
+/* ---------------- product image resizing (performance) ----------------
+   Product images in Supabase Storage are ~1587×2245 px / ~1 MB each, but cards
+   show them ~300 px wide — the homepage downloaded ~9 MB on mobile. /img
+   returns a resized WebP/JPEG (≈90 KB at 600 w), resized once and cached on
+   disk + in browsers. Only images from this shop's own Supabase bucket are
+   accepted (no open proxy / SSRF) and only fixed widths. On any failure it
+   redirects to the original image, so pictures never break. */
+const IMG_WIDTHS = new Set([200, 400, 600, 900, 1200]);
+const IMG_CACHE_DIR = process.env.HSS_IMG_CACHE_DIR || path.join(require('os').tmpdir(), 'hss-img-cache');
+const IMG_INFLIGHT = new Map();
+let imgActive = 0; const imgQueue = [];
+const imgSlot = () => new Promise(r => { if(imgActive < 3){ imgActive++; r(); } else imgQueue.push(r); });
+const imgDone = () => { const n = imgQueue.shift(); if(n) n(); else imgActive--; };
+function allowedImageUrl(u){
+  try{
+    const x = new URL(u);
+    let hostOk = /^[a-z0-9-]+\.supabase\.co$/.test(x.hostname);
+    if(process.env.SUPABASE_URL){ try{ hostOk = x.hostname === new URL(process.env.SUPABASE_URL).hostname; }catch(_){} }
+    return x.protocol === 'https:' && hostOk && !x.search && !x.username &&
+      x.pathname.startsWith('/storage/v1/object/public/' + SUPABASE_BUCKET + '/') && !x.pathname.includes('..');
+  }catch(_){ return false; }
+}
+async function renderImage(u, w, fmt, file){
+  await imgSlot();
+  try{
+    const r = await fetch(u, { signal: AbortSignal.timeout(20000) });
+    if(!r.ok) throw new Error('origin HTTP ' + r.status);
+    const buf = Buffer.from(await r.arrayBuffer());
+    if(buf.length > 25 * 1024 * 1024) throw new Error('origin image too large');
+    const sharp = require('sharp');
+    let img = sharp(buf, { limitInputPixels: 60e6 }).rotate().resize({ width: w, withoutEnlargement: true });
+    img = fmt === 'webp' ? img.webp({ quality: 78 }) : img.jpeg({ quality: 80, mozjpeg: true });
+    const out = await img.toBuffer();
+    await fs.promises.mkdir(IMG_CACHE_DIR, { recursive: true });
+    const tmp = file + '.' + process.pid + '.' + crypto.randomBytes(3).toString('hex') + '.tmp';
+    await fs.promises.writeFile(tmp, out);
+    await fs.promises.rename(tmp, file);
+  } finally { imgDone(); }
+}
+app.get('/img', async (req,res)=>{
+  const u = String(req.query.u || '');
+  const w = parseInt(req.query.w, 10);
+  if(!allowedImageUrl(u) || !IMG_WIDTHS.has(w)) return res.status(400).type('text/plain').send('Bad image request');
+  const fmt = /image\/webp/.test(req.headers.accept || '') ? 'webp' : 'jpeg';
+  const key = crypto.createHash('sha1').update(u + '|' + w + '|' + fmt).digest('hex');
+  const file = path.join(IMG_CACHE_DIR, key + '.' + fmt);
+  try{
+    if(!fs.existsSync(file)){
+      let job = IMG_INFLIGHT.get(key);
+      if(!job){ job = renderImage(u, w, fmt, file).finally(() => IMG_INFLIGHT.delete(key)); IMG_INFLIGHT.set(key, job); }
+      await job;
+    }
+    res.setHeader('Vary', 'Accept');
+    res.sendFile(file, { maxAge: '30d', immutable: true, headers: { 'Content-Type': fmt === 'webp' ? 'image/webp' : 'image/jpeg' } });
+  }catch(e){
+    console.warn('[img] falling back to original:', e && e.message);
+    res.setHeader('Cache-Control', 'no-store');
+    res.redirect(302, u);
+  }
+});
+
+/* ---------------- admin: upload → Supabase Storage ---------------- */
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -1262,7 +1471,7 @@ const upload = multer({
     files: 8
   },
   fileFilter: (r, f, cb) =>
-    /image\/(jpeg|png|webp|gif)/.test(f.mimetype)
+    /^image\/(jpeg|png|webp|gif)$/.test(f.mimetype)
       ? cb(null, true)
       : cb(new Error('Only image files allowed'))
 });
@@ -1287,10 +1496,7 @@ app.post('/api/admin/upload', requireAdmin, (req, res) => {
       const urls = [];
 
       for (const file of files) {
-        const ext =
-          path.extname(file.originalname || '')
-            .toLowerCase()
-            .replace(/[^.a-z0-9]/g, '') || '.jpg';
+        const ext = MIME_EXT[file.mimetype] || '.jpg';   // validated by fileFilter
 
         const filename =
           Date.now().toString(36) +
@@ -1298,7 +1504,16 @@ app.post('/api/admin/upload', requireAdmin, (req, res) => {
           crypto.randomBytes(6).toString('hex') +
           ext;
 
+        // Local development: keep uploads on this machine (public/uploads),
+        // never in the production Supabase bucket.
+        if (UPLOAD_STORAGE === 'local') {
+          await fs.promises.writeFile(path.join(UPLOAD_DIR, filename), file.buffer);
+          urls.push('/uploads/' + filename);
+          continue;
+        }
+
         const storagePath = `products/${filename}`;
+        const supabase = getSupabase();
 
         const { error: uploadError } = await supabase.storage
           .from(SUPABASE_BUCKET)
@@ -1343,13 +1558,12 @@ app.get('/robots.txt', (req,res)=>{
   res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin/\nSitemap: https://highstreet-society.onrender.com/mysites.xml\n');
 });
 function generateSitemap(req){
-  const base=req.protocol+'://'+req.get('host');
+  const base=SITE_URL;   // same host as the canonical URLs
   const urls=['','/shop','/track','/about','/contact'].concat(Object.keys(db.content||{}).map(k=>'/policy/'+k));
   const xml=['<?xml version="1.0" encoding="UTF-8"?>','<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'];
   urls.forEach(u=>xml.push('<url><loc>'+base+(u||'/')+'</loc><changefreq>daily</changefreq></url>'));
   db.products.filter(p=>p.published).forEach(p=>xml.push('<url><loc>'+base+'/product/'+p.slug+'</loc><changefreq>weekly</changefreq></url>'));
   xml.push('</urlset>');
-  return xml.join('\n');
   return xml.join('\n');
 }
 app.get('/sitemap.xml',(req,res)=>{
@@ -1372,6 +1586,7 @@ app.use((req,res,next)=>{
   next();
 });
 app.use(express.static(path.join(__dirname,'public'), {
+  index:false,                       // "/" is rendered by sendPage() below
   maxAge:'30d', etag:true,
   setHeaders:(res,fp)=>{
     // HTML must always revalidate.
@@ -1390,10 +1605,47 @@ app.use(express.static(path.join(__dirname,'public'), {
     }
   }
 }));
-const page = f => (req,res)=>res.sendFile(path.join(__dirname,'public',f));
+/* HTML pages: SEO metadata is filled in on the server, because social-preview
+   crawlers (WhatsApp, Facebook) and some search bots do not run JavaScript.
+   - absolute og:image URLs (relative ones are ignored by share previews)
+   - canonical + og:url on public pages, noindex on private ones
+   - product pages get their own title/description/image; unknown products 404 */
+const SITE_URL = String(process.env.SITE_URL || 'https://highstreet-society.onrender.com').replace(/\/+$/, '');
+const NOINDEX_PAGES = new Set(['cart.html','checkout.html','success.html','account.html','wishlist.html','admin.html','404.html','track.html']);
+const htmlEsc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function sendPage(req, res, file, { status = 200, meta = null } = {}){
+  let html;
+  try{ html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8'); }
+  catch(e){ return res.status(500).type('text/plain').send('Page unavailable'); }
+  if(meta){
+    const t = htmlEsc(meta.title), d = htmlEsc(meta.description);
+    html = html.replace(/<title>[^<]*<\/title>/, '<title>' + t + '</title>')
+      .replace(/(<meta name="description" content=")[^"]*(")/, '$1' + d + '$2')
+      .replace(/(<meta property="og:title" content=")[^"]*(")/, '$1' + t + '$2');
+    if(meta.image) html = html.replace(/(<meta property="og:image" content=")[^"]*(")/, '$1' + htmlEsc(meta.image) + '$2');
+    if(!/property="og:description"/.test(html)) html = html.replace('</head>', '<meta property="og:description" content="' + d + '">\n</head>');
+  }
+  html = html.replace(/(<meta property="og:image" content=")\/(?!\/)/g, '$1' + SITE_URL + '/');
+  const url = SITE_URL + req.path;
+  const tags = NOINDEX_PAGES.has(file) ? '<meta name="robots" content="noindex">'
+    : '<link rel="canonical" href="' + htmlEsc(url) + '">\n<meta property="og:url" content="' + htmlEsc(url) + '">';
+  html = html.replace('</head>', tags + '\n</head>');
+  res.status(status).type('html').setHeader('Cache-Control', 'no-cache');
+  res.send(html);
+}
+const page = f => (req,res)=>sendPage(req, res, f);
 app.get('/', page('index.html'));
 app.get('/shop', page('shop.html'));
-app.get('/product/:slug', page('product.html'));
+app.get('/product/:slug', (req,res)=>{
+  const p = db.products.find(x => x.slug === req.params.slug && x.published);
+  if(!p) return sendPage(req, res, 'product.html', { status:404 });   // page JS shows "not found"
+  sendPage(req, res, 'product.html', { meta:{
+    title: p.name + ' — Highstreet Society',
+    description: ((p.short ? p.short + '. ' : '') + ((p.type||'poster') === 'poster' ? '6 premium A4 posters on 3mm board. ' : '') +
+      'Cash on Delivery all over Bangladesh.').replace(/\.\.+/g, '.'),
+    image: p.cover
+  }});
+});
 app.get('/cart', page('cart.html'));
 app.get('/checkout', page('checkout.html'));
 app.get('/success', page('success.html'));
@@ -1404,17 +1656,25 @@ app.get('/account', page('account.html'));
 app.get('/wishlist', page('wishlist.html'));
 app.get('/policy/:key', page('policy.html'));
 app.get('/custom-design', page('custom-design.html'));
-app.get('/admin', (req,res)=>res.sendFile(path.join(__dirname,'public','admin.html')));
+app.get('/admin', page('admin.html'));
 app.use('/api', (req,res)=>res.status(404).json({ error:'Not found' }));
-app.use((req,res)=>res.status(404).sendFile(path.join(__dirname,'public','404.html')));
+app.use((req,res)=>sendPage(req, res, '404.html', { status:404 }));
 
 /* Bind the port only after the persistence layer is ready. If DATABASE_URL is
    configured but the approved PostgreSQL schema is missing, initialization
    fails before the HTTP server starts; data/db.json remains untouched. */
 let server;
 async function startServer(){
+  const problems = localSafetyProblems();
+  if(problems.length){
+    problems.forEach(p => console.error('[fatal] ' + p));
+    process.exit(1);
+  }
   try{
     await initializePersistenceLayer();
+    console.log('[hss] Environment:', IS_PRODUCTION ? 'production' : 'development',
+      '| uploads:', UPLOAD_STORAGE,
+      '| data:', persistence.mode === 'json' ? path.relative(__dirname, DB_PATH) : 'postgres');
     initializeSessionSecret();
     server = app.listen(PORT, '0.0.0.0', () => {
       console.log('HSS running on http://0.0.0.0:' + PORT);
@@ -1442,7 +1702,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('[unhandled-rejection]', reason && reason.stack ? reason.stack : reason);
 });
 function shutdown(sig) {
-  console.log(`[hss] ${sig} received ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â closing server`);
+  console.log(`[hss] ${sig} received — closing server`);
   const code = process.env.HSS_STOP === '1' ? 0 : 130;
   if(!server) process.exit(code);
   server.close(() => process.exit(code));

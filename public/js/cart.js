@@ -10,7 +10,7 @@ async function render(){
     return;
   }
   el.innerHTML = `<div class="shophead"><h1>YOUR CART</h1><p>${H.cartCount()} item(s)</p></div>
-  <div class="split"><div class="panel" id="items"><div class="empty"><div class="e">◌</div></div></div>
+  <div class="split"><div class="panel" id="items"><div class="empty"><div class="e"><span class="spin" aria-hidden="true"></span></div></div></div>
   <div class="panel"><h2>Summary</h2><div id="sum"></div></div></div>`;
   // resolve products
   const box=document.getElementById('items'), sum=document.getElementById('sum');
@@ -31,7 +31,7 @@ async function render(){
       valid.push(sz?{id:p.id, qty:q, size:sz}:{id:p.id, qty:q});
       subtotal += p.effPrice*q;
       box.insertAdjacentHTML('beforeend', `<div class="citem">
-        <a href="/product/${p.slug}"><img src="${H.esc(p.cover)}" alt="${H.esc(p.name)}" onerror="this.src='/images/logo.png'"></a>
+        <a href="/product/${p.slug}"><img src="${H.esc(H.img(p.cover,200))}" alt="${H.esc(p.name)}" onerror="this.src='/images/logo.png'"></a>
         <div><a href="/product/${p.slug}"><h3>${H.esc(p.name)}</h3></a>
           <div class="m">${p.type==='poster'?`Set ${H.esc(p.setNo)} • 6 posters`:p.type==='combo'?`${(p.bundleItems||[]).length} items`:'Apparel'}${sz?` • Size <b class="szchip">${H.esc(sz)}</b>`:''} • ${H.money(p.effPrice)} each</div>
           <div class="miniqty"><button onclick="CQTY('${p.id}',-1,${JSON.stringify(sz)})">−</button><b>${q}</b><button onclick="CQTY('${p.id}',1,${JSON.stringify(sz)})">+</button></div>
@@ -42,7 +42,9 @@ async function render(){
   }
   H.setCart(valid);
   if(!valid.length){ render(); return; }
-  const del=H.settings.delivery;
+  await H.settingsReady;
+  const del=(H.settings&&H.settings.delivery)||null;
+  if(!del){ sum.innerHTML='<p class="meta">Delivery charges could not be loaded — they will be shown at checkout.</p>'; return; }
   sum.innerHTML = `
     <div class="sumrow"><span>Subtotal</span><span>${H.money(subtotal)}</span></div>
     <div class="sumrow"><span>Delivery (Inside Dhaka)</span><span>${H.money(del.inside)}</span></div>
