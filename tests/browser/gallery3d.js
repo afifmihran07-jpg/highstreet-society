@@ -24,7 +24,12 @@ module.exports = async function exhibition(T) {
     return { st: { l: st.left, t: st.top, r: st.right, b: st.bottom }, cards,
       count: document.querySelector('.g3d-count').textContent, title: document.querySelector('.g3d-title').textContent,
       dots: document.querySelectorAll('.g3d-dot').length, on: [...document.querySelectorAll('.g3d-dot')].findIndex(d => d.classList.contains('on')),
-      infoT: (document.querySelector('.g3d-info b') || {}).textContent, infoX: (document.querySelector('.g3d-info p') || {}).textContent,
+      infoT: (document.querySelector('.g3d-tip.on b') || {}).textContent, infoX: (document.querySelector('.g3d-tip.on p') || {}).textContent,
+      tipP: (document.querySelector('.g3d-tip.on') || { dataset: {} }).dataset.p,
+      tipIn: (() => { const t = document.querySelector('.g3d-tip.on .g3d-tip-tx'); if (!t) return null; const a = t.getBoundingClientRect(), b = document.querySelector('.g3d-stage').getBoundingClientRect();
+        return a.left >= b.left - 1 && a.right <= b.right + 1 && a.top >= b.top - 1 && a.bottom <= b.bottom + 1; })(),
+      marker: document.querySelectorAll('.g3d-tip .g3d-mark path').length,
+      panel: !!document.querySelector('.g3d-info'),
       kids: [...document.getElementById('content').children].map(e => e.className.split(' ')[0]),
       overflow: document.documentElement.scrollWidth - innerWidth };
   });
@@ -50,6 +55,10 @@ module.exports = async function exhibition(T) {
     check('posters are the set\'s own original artwork, every image loads', s.cards.every(c => first.posters[c.p].url === c.src && c.ok));
     check('every poster leads to the set\'s product page', s.cards.every(c => c.href === '/product/' + encodeURIComponent(first.slug)));
     check('no horizontal overflow', s.overflow <= 1, String(s.overflow));
+    const navHits = await page.evaluate(() => { const els = [...document.querySelectorAll('.g3d-title,.g3d-count,.g3d-arrow,.g3d-dots,.g3d-cta,.g3d-all')].map(e => e.getBoundingClientRect());
+      let n = 0; for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) { const a = els[i], c = els[j];
+        if (Math.min(a.right, c.right) - Math.max(a.left, c.left) > 1 && Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top) > 1) n++; } return n; });
+    check('navigation controls do not overlap', navHits === 0, String(navHits));
     if (vp.touch) {
       let maxOv = 0;
       for (let i = 0; i < s.cards.length; i++) for (let j = i + 1; j < s.cards.length; j++) {
@@ -63,14 +72,29 @@ module.exports = async function exhibition(T) {
       for (const c of s.cards) {
         await page.tap(`.g3d-card[data-p="${c.p}"]`);
         await page.waitForTimeout(150);
-        const st = await page.evaluate(p => ({ t: document.querySelector('.g3d-info b').textContent, x: document.querySelector('.g3d-info p').textContent,
+        const st = await page.evaluate(p => ({ t: (document.querySelector('.g3d-tip.on b') || {}).textContent, x: (document.querySelector('.g3d-tip.on p') || {}).textContent,
           sel: document.querySelector('.g3d-card.sel') && +document.querySelector('.g3d-card.sel').dataset.p, url: location.pathname }), c.p);
         const want = first.posters[c.p];
         seen.push(st.t === (want.title || `Poster ${c.p + 1}`) && st.x === want.text && st.sel === c.p && st.url === '/');
       }
       check('tap reveals each poster\'s own info and marks it selected (no accidental navigation)', seen.every(Boolean), JSON.stringify(seen));
       await page.screenshot({ path: path.join(ART, `exhibition-${name.replace(' ', '-')}.png`), fullPage: false });
-      await page.tap('.g3d-info .g3d-go');
+      const cap = await page.evaluate(() => {
+        const t = document.querySelector('.g3d-tip.on'); if (!t) return null;
+        const r = t.getBoundingClientRect(), st = document.querySelector('.g3d-stage').getBoundingClientRect();
+        const covers = [...document.querySelectorAll('.g3d-card:not(.leave) .g3d-inner')].filter(e => { const c = e.getBoundingClientRect();
+          return Math.min(r.right, c.right) - Math.max(r.left, c.left) > 0 && Math.min(r.bottom, c.bottom) - Math.max(r.top, c.top) > 0; }).length;
+        return { below: r.top >= st.bottom - 1, covers, marker: t.querySelectorAll('.g3d-mark path').length,
+          cornerMark: getComputedStyle(document.querySelector('.g3d-card.sel .g3d-inner'), '::after').backgroundImage.includes('svg') };
+      });
+      check('touch: marker + info show in a caption below the posters, covering none of them', !!cap && cap.below && cap.covers === 0 && cap.marker === 3, JSON.stringify(cap));
+      check('touch: the selected poster carries a small marker on its corner', !!cap && cap.cornerMark);
+      await page.tap('.g3d-tip .g3d-zoom');
+      await page.waitForSelector('.g3d-lb.open', { timeout: 5000 }).catch(() => {});
+      check('"View larger" on the poster opens the lightbox (touch)', !!(await page.$('.g3d-lb.open')));
+      await page.tap('.g3d-lb-x');
+      await page.tap(`.g3d-card[data-p="${s.cards[0].p}"]`); await page.waitForTimeout(200);
+      await page.tap('.g3d-tip .g3d-go');
       await page.waitForSelector('.pinfo h1', { timeout: 15000 }).catch(() => {});
       check('"Explore set" opens the correct product page', page.url().endsWith('/product/' + first.slug));
     } else {
@@ -86,6 +110,11 @@ module.exports = async function exhibition(T) {
         seen.push(st.infoT === (want.title || `Poster ${c.p + 1}`) && st.infoX === want.text);
       }
       check('hovering each poster shows its own title and description', seen.every(Boolean), JSON.stringify(seen));
+      const tipS = await state(page);
+      check('hover shows the 3-stroke geometric marker on that poster, overlay inside the stage, no panel below',
+        tipS.marker === 3 && tipS.tipIn === true && !tipS.panel && +tipS.tipP === s.cards[s.cards.length - 1].p, JSON.stringify({ m: tipS.marker, in: tipS.tipIn, p: tipS.tipP }));
+      await page.mouse.move(5, 5); await page.waitForTimeout(700);
+      check('marker and info disappear when the pointer leaves', !(await page.$('.g3d-tip.on')));
       check('the six descriptions are all different', new Set(first.posters.map(p => p.text)).size === first.posters.length);
       await (await page.$('#g3d')).screenshot({ path: path.join(ART, `exhibition-${name}.png`) });
       if (name === 'desktop') {
@@ -116,9 +145,11 @@ module.exports = async function exhibition(T) {
         await page.keyboard.press('ArrowLeft'); await settle(page);
         await page.focus('.g3d-card[data-p="3"]');
         const kf = await state(page);
-        check('keyboard: focusing a poster shows its info', kf.infoT === (ex.sets[0].posters[3].title || 'Poster 4'));
+        check('keyboard: focusing a poster shows its marker + info', kf.infoT === (ex.sets[0].posters[3].title || 'Poster 4') && kf.tipP === '3');
+        await page.keyboard.press('Tab');
+        check('keyboard: Tab from a poster goes to its "View larger"', await page.evaluate(() => document.activeElement.classList.contains('g3d-zoom')));
         // lightbox
-        await page.click('.g3d-info .g3d-zoom');
+        await page.keyboard.press('Enter');
         await page.waitForSelector('.g3d-lb.open');
         const lb1 = await page.evaluate(() => ({ cap: document.querySelector('.g3d-lb figcaption b').textContent, src: document.querySelector('.g3d-lb img').src,
           go: document.querySelector('.g3d-lb figcaption a').getAttribute('href'), focus: document.activeElement.className }));
