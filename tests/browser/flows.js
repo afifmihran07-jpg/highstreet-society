@@ -280,7 +280,7 @@ async function customerFlows(T) {
 /* 6. Every admin module renders without errors */
 async function adminModules(T) {
   const { browser, base, check, heading, ART } = T;
-  heading('Admin — all 15 modules');
+  heading('Admin — all 16 modules');
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await ctx.newPage();
   const errors = [];
@@ -288,7 +288,7 @@ async function adminModules(T) {
   await page.goto(base + '/admin', { waitUntil: 'domcontentloaded' });
   await page.fill('#u', 'hssadmin'); await page.fill('#p', 'admin123'); await page.click('#lbtn');
   await page.waitForSelector('#pane');
-  const tabs = ['dash', 'analytics', 'products', 'cats', 'orders', 'inv', 'reviews', 'coupons', 'customers', 'carts',
+  const tabs = ['dash', 'analytics', 'products', 'cats', 'orders', 'inv', 'reviews', 'promos', 'coupons', 'customers', 'carts',
     'designs', 'home', 'content', 'pay', 'settings', 'pnew'];
   for (const t of tabs) {
     const before = errors.length;
@@ -306,4 +306,4 @@ async function adminModules(T) {
   await ctx.close();
 }
 
-module.exports = { firstPaint, freshLoads, noFlicker, search, checkoutFlows, customerFlows, adminModules, MOJIBAKE };
+module.exports = { firstPaint, freshLoads, noFlicker, search, checkoutFlows, customerFlows, adminModules, phase3: require('./phase3'), MOJIBAKE };

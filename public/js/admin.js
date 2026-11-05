@@ -94,6 +94,7 @@ const NAV=[
   ['orders','📦 Orders','ordN'],
   ['inv','⚖ Inventory'],
   ['reviews','☆ Reviews','revN'],
+  ['promos','🔥 Promotions'],
   ['coupons','🏷 Coupons'],
   ['customers','👥 Customers','cusN'],
   ['carts','🛒 Abandoned Carts','cartN'],
@@ -362,10 +363,30 @@ async function vProducts(pane){
   pane.innerHTML=head('Poster Sets',A.products.length+' set(s) • click edit to manage the 6 posters')+`
   <div class="arow" style="margin-bottom:16px"><button class="abtn lime" onclick="GOTAB('pnew')">➕ Add New Set</button>
   <input id="pq" placeholder="Search sets…" style="max-width:260px"></div>
-  <div class="panel" style="overflow-x:auto"><table class="atable"><thead><tr><th></th><th>Set</th><th>Price</th><th>Stock</th><th>Flags</th><th>Sold</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>`;
+  <div class="panel bulkbar" id="bulkbar" style="margin-bottom:14px;display:none"><div class="arow">
+    <b id="bulkn">0 selected</b>
+    <select id="bulka" style="max-width:240px">
+      <option value="">Choose bulk action…</option>
+      <option value="price">Set regular price ৳</option>
+      <option value="sale">Set sale price ৳</option>
+      <option value="salePercent">Sale: % off regular price</option>
+      <option value="clearSale">Remove sale price</option>
+      <option value="stock">Set stock</option>
+      <option value="publish">Publish (show)</option>
+      <option value="hide">Hide</option>
+      <option value="addCategory">Add to category</option>
+      <option value="removeCategory">Remove from category</option>
+      <option value="flagOn">Turn ON a badge</option>
+      <option value="flagOff">Turn OFF a badge</option>
+    </select>
+    <span id="bulkv"></span>
+    <button class="abtn lime sm" id="bulkgo">Apply</button>
+    <button class="abtn ghost sm" id="bulkclr">Clear selection</button></div></div>
+  <div class="panel" style="overflow-x:auto"><table class="atable"><thead><tr><th><input type="checkbox" id="pall" style="width:auto" aria-label="select all"></th><th></th><th>Set</th><th>Price</th><th>Stock</th><th>Flags</th><th>Sold</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>`;
   function rows(f=''){
     const list=A.products.filter(p=>(p.name+p.sku+p.setNo).toLowerCase().includes(f.toLowerCase()));
     document.getElementById('rows').innerHTML=list.map(p=>`<tr>
+      <td><input type="checkbox" class="psel" value="${p.id}" ${SEL.has(p.id)?'checked':''} style="width:auto" aria-label="select ${esc(p.name)}"></td>
       <td><img src="${esc(p.cover)}" class="athumb" onerror="this.src='/images/logo.png'"></td>
       <td><b>${esc(p.name)}</b><br><span style="color:var(--dim);font-size:12.5px">SET ${esc(p.setNo)} • ${esc(p.sku||'')} • ${(p.posters||[]).length} posters</span></td>
       <td><b>${money(p.effPrice)}</b>${p.salePrice?`<br><s style="color:var(--dim);font-size:12px">${money(p.price)}</s>`:''}</td>
@@ -376,8 +397,34 @@ async function vProducts(pane){
         <button class="abtn sm ghost" onclick="PDUP('${p.id}')">Duplicate</button>
         <button class="abtn sm ghost" onclick="PUB('${p.id}',${p.published?0:1})">${p.published?'Hide':'Show'}</button>
         <button class="abtn sm danger" onclick="PDEL('${p.id}')">Delete</button>
-      </div></td></tr>`).join('')||'<tr><td colspan="7">No sets found.</td></tr>';
+      </div></td></tr>`).join('')||'<tr><td colspan="8">No sets found.</td></tr>';
+    document.querySelectorAll('.psel').forEach(c=>c.onchange=()=>{ c.checked?SEL.add(c.value):SEL.delete(c.value); bulkUi(); });
+    const all=document.getElementById('pall'); all.checked=list.length&&list.every(p=>SEL.has(p.id));
+    all.onchange=()=>{ list.forEach(p=>all.checked?SEL.add(p.id):SEL.delete(p.id)); rows(document.getElementById('pq').value); bulkUi(); };
   }
+  const SEL=new Set();
+  function bulkUi(){
+    document.getElementById('bulkbar').style.display=SEL.size?'':'none';
+    document.getElementById('bulkn').textContent=SEL.size+' selected';
+  }
+  document.getElementById('bulka').onchange=async e=>{
+    const a=e.target.value, v=document.getElementById('bulkv');
+    if(['price','sale','salePercent','stock'].includes(a)) v.innerHTML=`<input id="bulkval" type="number" min="0" style="max-width:120px" placeholder="${a==='salePercent'?'e.g. 15':a==='stock'?'e.g. 20':'e.g. 420'}">`;
+    else if(a==='addCategory'||a==='removeCategory'){ const cs=(await api('/api/admin/categories')).categories||[];
+      v.innerHTML=`<select id="bulkval" style="max-width:200px">${cs.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>`; }
+    else if(a==='flagOn'||a==='flagOff') v.innerHTML='<select id="bulkval" style="max-width:160px"><option value="featured">Featured</option><option value="isNew">New In</option><option value="bestseller">Bestseller</option></select>';
+    else v.innerHTML='';
+  };
+  document.getElementById('bulkclr').onclick=()=>{ SEL.clear(); rows(document.getElementById('pq').value); bulkUi(); };
+  document.getElementById('bulkgo').onclick=async()=>{
+    const action=document.getElementById('bulka').value; if(!action) return toast('Choose a bulk action');
+    const ve=document.getElementById('bulkval'); const value=ve?(ve.type==='number'?Number(ve.value):ve.value):undefined;
+    if(ve&&ve.type==='number'&&ve.value==='') return toast('Enter a value');
+    const label=document.getElementById('bulka').selectedOptions[0].textContent;
+    if(!confirm(label+(value!==undefined?' → '+value:'')+' for '+SEL.size+' set(s)?')) return;
+    try{ const r=await api('/api/admin/products/bulk',{method:'POST',body:{ids:[...SEL],action,value}});
+      toast('Updated '+r.updated+' set(s)',true); SEL.clear(); vProducts(pane); }catch(e){ toast(e.message); }
+  };
   rows();
   document.getElementById('pq').oninput=e=>rows(e.target.value);
   window.PEDIT=id=>{A.editId=id;A.tab='pedit';shell();run();};
@@ -538,8 +585,23 @@ async function vCats(pane){
   ${A.cats.map(c=>`<tr><td><b>${esc(c.name)}</b><br><span style="color:var(--dim);font-size:12.5px">${esc(c.description||'')}</span></td><td>${c.productCount}</td>
     <td><input type="number" value="${c.sort}" style="width:70px;padding:7px" onchange="CEDIT('${c.id}',{sort:+this.value})"></td>
     <td><label class="tgl"><input type="checkbox" ${c.visible!==false?'checked':''} onchange="CEDIT('${c.id}',{visible:this.checked})"><i></i></label></td>
-    <td><div class="arow"><button class="abtn sm ghost" onclick="CREN('${c.id}')">Rename</button><button class="abtn sm danger" onclick="CDEL('${c.id}')">Delete</button></div></td></tr>`).join('')}
-  </tbody></table></div>`;
+    <td><div class="arow"><button class="abtn sm ghost" onclick="CED('${c.id}')">Edit</button><button class="abtn sm danger" onclick="CDEL('${c.id}')">Delete</button></div></td></tr>`).join('')}
+  </tbody></table></div><div id="cedit"></div>`;
+  window.CED=id=>{ const c=A.cats.find(x=>x.id===id); const box=document.getElementById('cedit');
+    box.innerHTML=`<div class="panel" style="margin-top:18px"><h2>Edit category — ${esc(c.name)}</h2><div class="aform">
+      <div class="fld"><label>Name *</label><input id="ce_name" value="${esc(c.name)}"></div>
+      <div class="fld"><label>Link</label><input value="/shop?cat=${esc(c.id)}" readonly></div>
+      <div class="fld full"><label>Description (shown on the shop page for this category)</label><input id="ce_desc" value="${esc(c.description||'')}"></div>
+      <div class="fld full"><label>Tile image for the homepage "Shop by vibe" row (empty = artwork from a set in this category)</label>
+        <div class="arow"><input id="ce_img" value="${esc(c.image||'')}" style="flex:1"><label class="abtn ghost sm" style="cursor:pointer">Upload<input type="file" id="ce_imgf" accept="image/*" hidden></label></div>
+        ${c.image?`<img src="${esc(c.image)}" style="max-width:160px;border-radius:10px;margin-top:10px">`:''}</div>
+    </div><div class="arow" style="margin-top:12px"><button class="abtn lime" id="ce_save">Save category</button><button class="abtn ghost" onclick="document.getElementById('cedit').innerHTML=''">Cancel</button></div></div>`;
+    document.getElementById('ce_imgf').onchange=async e=>{ if(!e.target.files.length)return; toast('Uploading…');
+      try{ const u=await uploadFiles(e.target.files); document.getElementById('ce_img').value=u[0]; toast('Uploaded — press Save',true);}catch(err){toast(err.message);} };
+    document.getElementById('ce_save').onclick=()=>{ const n=document.getElementById('ce_name').value.trim(); if(!n) return toast('Name is required');
+      CEDIT(id,{name:n,description:document.getElementById('ce_desc').value,image:document.getElementById('ce_img').value.trim()}); };
+    box.scrollIntoView({behavior:'smooth',block:'start'});
+  };
   window.CADD=async()=>{ try{await api('/api/admin/categories',{method:'POST',body:{name:document.getElementById('c_name').value,description:document.getElementById('c_desc').value,sort:+document.getElementById('c_sort').value}});toast('Added',true);vCats(pane);}catch(e){toast(e.message);} };
   window.CEDIT=async(id,b)=>{ try{await api('/api/admin/categories/'+id,{method:'PUT',body:b});toast('Saved',true);vCats(pane);}catch(e){toast(e.message);} };
   window.CREN=async id=>{ const c=A.cats.find(x=>x.id===id); const n=prompt('Rename category:',c.name); if(n&&n.trim()) CEDIT(id,{name:n.trim()}); };
@@ -576,12 +638,21 @@ async function vHome(pane){
   const Hh=A.homepage;
   const byId=Object.fromEntries(A.products.map(p=>[p.id,p]));
   const S={ featured:[...(Hh.featuredIds||[])], news:[...(Hh.newIds||[])], best:[...(Hh.bestsellerIds||[])] };
-  pane.innerHTML=head('Homepage CMS','Everything on the homepage — no code needed')+`
+  const Hb=(Hh.hero&&Hh.hero.blocks)||{}; const HS=Hb.sections||{};
+  const perks=(Hb.perks&&Hb.perks.length?Hb.perks:[]).concat(Array(6).fill({title:'',text:''})).slice(0,6);
+  pane.innerHTML=head('Homepage CMS','Everything on the homepage — no code needed. Empty fields use the built-in poster-shop wording.')+`
+  <div class="arow" style="margin-bottom:14px"><button class="abtn ghost" onclick="HRECO()">✨ Fill with recommended poster-shop copy</button>
+    <a class="abtn ghost" href="/" target="_blank" rel="noopener">Open homepage ↗</a></div>
   <div class="panel" style="margin-bottom:18px"><h2>Hero section</h2><div class="aform">
-    <div class="fld"><label>Badge</label><input id="h_badge" value="${esc(Hh.hero.badge||'')}"></div>
-    <div class="fld"><label>Image URL</label><div class="arow"><input id="h_img" value="${esc(Hh.hero.image||'')}" style="flex:1"><label class="abtn ghost sm" style="cursor:pointer">Upload<input type="file" id="h_imgf" accept="image/*" hidden></label></div></div>
-    <div class="fld full"><label>Title</label><input id="h_title" value="${esc(Hh.hero.title||'')}"></div>
+    <div class="fld"><label>Badge (small pill above the headline)</label><input id="h_badge" value="${esc(Hh.hero.badge||'')}" placeholder="e.g. NEW DROP • LIVE NOW"></div>
+    <div class="fld"><label>Hero image (empty = default poster collage)</label><div class="arow"><input id="h_img" value="${esc(Hh.hero.image&&Hh.hero.image!=='/images/hero-collage.png'?Hh.hero.image:'')}" style="flex:1"><label class="abtn ghost sm" style="cursor:pointer">Upload<input type="file" id="h_imgf" accept="image/*" hidden></label></div></div>
+    <div class="fld"><label>Headline line 1</label><input id="h_l1t" value="${esc(Hh.hero.line1||'')}" placeholder="SIX POSTERS."></div>
+    <div class="fld"><label>Headline line 2</label><input id="h_l2t" value="${esc(Hh.hero.line2||'')}" placeholder="ONE VIBE."></div>
+    <div class="fld"><label>Headline line 3</label><input id="h_l3t" value="${esc(Hh.hero.line3||'')}" placeholder="YOUR"></div>
+    <div class="fld"><label>Headline line 3 — italic ending</label><input id="h_l3i" value="${esc(Hh.hero.line3Italic||'')}" placeholder="walls."></div>
     <div class="fld full"><label>Subtitle</label><input id="h_sub" value="${esc(Hh.hero.subtitle||'')}"></div>
+    <div class="fld"><label>Tagline under subtitle</label><input id="h_tag" value="${esc(Hh.hero.tagline||'')}" placeholder="A4 • 3MM BOARD • 6 POSTERS PER SET"></div>
+    <div class="fld"><label>Strip at bottom of hero</label><input id="h_strip" value="${esc(Hh.hero.strip||'')}" placeholder="PREMIUM A4 POSTER SETS • 3MM BOARD"></div>
     <div class="fld"><label>Button 1 text</label><input id="h_c1" value="${esc(Hh.hero.ctaText||'')}"></div>
     <div class="fld"><label>Button 1 link</label><input id="h_l1" value="${esc(Hh.hero.ctaLink||'')}"></div>
     <div class="fld"><label>Button 2 text</label><input id="h_c2" value="${esc(Hh.hero.cta2Text||'')}"></div>
@@ -592,6 +663,21 @@ async function vHome(pane){
     <div class="aform"><div class="fld"><label>Add a set</label><input id="q_${s[0]}" placeholder="Search sets…" style="margin-bottom:8px"><div class="picklist" id="av_${s[0]}"></div></div>
     <div class="fld"><label>Showing on homepage (top = first)</label><div class="picklist" id="ch_${s[0]}"></div></div></div>
   </div>`).join('')}
+  <div class="panel" style="margin-bottom:18px"><h2>Scrolling marquee</h2>
+    <div class="fld"><label>One message per line (up to 8)</label><textarea id="h_marq" rows="4" placeholder="NATIONWIDE DELIVERY">${esc((Hb.marquee||[]).join('\n'))}</textarea></div></div>
+  <div class="panel" style="margin-bottom:18px"><h2>Section headings</h2><div class="aform">
+    ${[['new','New arrivals'],['best','Best sellers'],['featured','Featured'],['collections','Collections (shop by vibe)']].map(([k,l])=>`
+    <div class="fld"><label>${l} — title</label><input id="hs_${k}_t" value="${esc((HS[k]||{}).title||'')}"></div>
+    <div class="fld"><label>${l} — subtitle</label><input id="hs_${k}_s" value="${esc((HS[k]||{}).sub||'')}"></div>`).join('')}
+  </div></div>
+  <div class="panel" style="margin-bottom:18px"><h2>Perks (why buy from us)</h2><div class="aform">
+    ${perks.map((p,i)=>`<div class="fld"><label>Perk ${i+1} title</label><input id="hp_${i}_t" value="${esc(p.title||'')}"></div>
+    <div class="fld"><label>Perk ${i+1} text</label><input id="hp_${i}_x" value="${esc(p.text||'')}"></div>`).join('')}
+  </div></div>
+  <div class="panel" style="margin-bottom:18px"><h2>Instagram block</h2><div class="aform">
+    <div class="fld"><label>Title</label><input id="hi_t" value="${esc((Hb.insta||{}).title||'')}" placeholder="Follow the society"></div>
+    <div class="fld"><label>Text</label><input id="hi_x" value="${esc((Hb.insta||{}).text||'')}"></div>
+  </div></div>
   <div class="panel" style="margin-bottom:18px"><h2>Collections row</h2><div class="arow">
     ${cats.map(c=>`<label style="display:inline-flex;align-items:center;gap:7px;font-size:14px;border:1px solid var(--line2);border-radius:99px;padding:8px 16px"><input type="checkbox" class="hcat" value="${c.id}" ${(Hh.collectionCategoryIds||[]).includes(c.id)?'checked':''} style="width:auto"> ${esc(c.name)}</label>`).join('')}
   </div><div class="fld" style="margin-top:12px"><label>Perks section title</label><input id="h_perks" value="${esc(Hh.perksTitle||'')}"></div></div>
@@ -623,9 +709,29 @@ async function vHome(pane){
         <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo.png'"><b>${esc(p.name)}</b><button onclick="HMV('${k2}',${i},-1)">↑</button><button onclick="HMV('${k2}',${i},1)">↓</button><button onclick="HRM('${k2}','${id}')">✕</button></div>`;}).join('')||'<p style="color:var(--dim);font-size:13px">Empty.</p>'; }
     };
   });
+  const g=id=>document.getElementById(id);
+  window.HRECO=()=>{
+    const R={h_badge:'NEW SETS • LIVE NOW',h_l1t:'SIX POSTERS.',h_l2t:'ONE VIBE.',h_l3t:'YOUR',h_l3i:'walls.',
+      h_sub:'Premium A4 poster sets on 3mm board: six matching designs, ready to hang. Delivered all over Bangladesh.',
+      h_tag:'A4 • 3MM BOARD • 6 POSTERS PER SET',h_strip:'PREMIUM A4 POSTER SETS • 3MM BOARD',
+      h_c1:'Shop all sets',h_l1:'/shop',h_c2:'New arrivals',h_l2:'/shop?filter=new',
+      h_marq:'NEW SETS EVERY DROP\nNATIONWIDE DELIVERY\n6 POSTERS PER SET\nCASH ON DELIVERY',
+      hs_new_t:'New arrivals',hs_new_s:'The latest poster sets, just dropped.',hs_best_t:'Cult favourites',hs_best_s:'The sets everyone is hanging right now.',
+      hs_featured_t:'Featured sets',hs_featured_s:'Hand-picked by the HSS crew.',hs_collections_t:'Shop by vibe',hs_collections_s:'Find the wall aesthetic that feels like you.',
+      hp_0_t:'Six posters, one set',hp_0_x:'Six matching A4 designs, curated to hang together.',hp_1_t:'3mm premium board',hp_1_x:'Thick, rigid and durable. No frames needed.',
+      hp_2_t:'Delivered all over BD',hp_2_x:'Every district and thana. Cash on delivery available.',hp_3_t:'Curated themed drops',hp_3_x:'Anime, football, Marvel, music, motorsport and more.',
+      hp_4_t:'',hp_4_x:'',hp_5_t:'',hp_5_x:'',hi_t:'Follow the society',hi_x:'New drops, room inspo & behind-the-scenes, first on Instagram.',h_perks:'Why Highstreet Society'};
+    Object.entries(R).forEach(([k,v])=>{ const e=g(k); if(e) e.value=v; });
+    toast('Recommended copy filled in — review it, then press Save homepage',true);
+  };
   window.HSAVE=async()=>{
-    const body={ hero:{badge:document.getElementById('h_badge').value,title:document.getElementById('h_title').value,subtitle:document.getElementById('h_sub').value,
-        ctaText:document.getElementById('h_c1').value,ctaLink:document.getElementById('h_l1').value,cta2Text:document.getElementById('h_c2').value,cta2Link:document.getElementById('h_l2').value,image:document.getElementById('h_img').value},
+    const blocks={ marquee:g('h_marq').value.split('\n').map(x=>x.trim()).filter(Boolean),
+      sections:Object.fromEntries(['new','best','featured','collections'].map(k=>[k,{title:g('hs_'+k+'_t').value,sub:g('hs_'+k+'_s').value}])),
+      perks:[0,1,2,3,4,5].map(i=>({title:g('hp_'+i+'_t').value,text:g('hp_'+i+'_x').value})).filter(p=>p.title.trim()),
+      insta:{title:g('hi_t').value,text:g('hi_x').value} };
+    const body={ blocks, hero:{badge:g('h_badge').value,line1:g('h_l1t').value,line2:g('h_l2t').value,line3:g('h_l3t').value,line3Italic:g('h_l3i').value,
+        tagline:g('h_tag').value,strip:g('h_strip').value,subtitle:g('h_sub').value,
+        ctaText:g('h_c1').value,ctaLink:g('h_l1').value,cta2Text:g('h_c2').value,cta2Link:g('h_l2').value,image:g('h_img').value},
       featuredIds:S.featured,newIds:S.news,bestsellerIds:S.best,
       collectionCategoryIds:[...document.querySelectorAll('.hcat:checked')].map(x=>x.value),
       perksTitle:document.getElementById('h_perks').value,
@@ -651,6 +757,46 @@ async function vInv(pane){
 }
 
 /* ---------- coupons ---------- */
+/* ---------- promotions (scheduled sales) ---------- */
+async function vPromos(pane){
+  const [d,cd]=await Promise.all([api('/api/admin/promotions'),api('/api/admin/categories')]);
+  const cats=cd.categories||[];
+  let L=(d.promotions||[]).map(p=>Object.assign({},p));
+  const toLocal=ms=>{ if(!ms) return ''; const t=new Date(ms); return new Date(t.getTime()-t.getTimezoneOffset()*60000).toISOString().slice(0,16); };
+  const fromLocal=s=>s?new Date(s).getTime():null;
+  const pill=s=>({running:'<span class="apill g">RUNNING</span>',scheduled:'<span class="apill y">SCHEDULED</span>',ended:'<span class="apill">ENDED</span>',paused:'<span class="apill r">PAUSED</span>'}[s]||'<span class="apill y">NOT SAVED</span>');
+  function draw(){
+    pane.innerHTML=head('Promotions','Scheduled sales: lower the price of all sets or selected categories for a period. Prices update automatically on the site, in the cart and at checkout.')+`
+    <div class="arow" style="margin-bottom:16px"><button class="abtn lime" id="pr_add">➕ New promotion</button><button class="abtn" id="pr_save">Save all promotions</button></div>
+    ${L.length?'':'<div class="panel"><p class="asub">No promotions yet. Example: "Eid Sale — 15% off all sets, 1–7 April, banner: EID SALE • 15% OFF ALL SETS".</p></div>'}
+    ${L.map((p,i)=>`<div class="panel" style="margin-bottom:16px"><h2>${esc(p.name||'New promotion')} ${pill(p.status)}</h2><div class="aform">
+      <div class="fld"><label>Name *</label><input data-k="name" data-i="${i}" value="${esc(p.name||'')}" placeholder="e.g. Eid Sale"></div>
+      <div class="fld"><label>Discount</label><div class="arow"><select data-k="type" data-i="${i}" style="max-width:120px"><option value="percent" ${p.type!=='flat'?'selected':''}>% off</option><option value="flat" ${p.type==='flat'?'selected':''}>৳ off</option></select>
+        <input data-k="value" data-i="${i}" type="number" min="1" value="${p.value||''}" style="max-width:120px"></div>
+        <span class="asub" style="font-size:12.5px">Example: ৳420 → ৳${p.value>0?Math.max(1,Math.round(p.type==='flat'?420-p.value:420*(1-p.value/100))):'…'}</span></div>
+      <div class="fld"><label>Starts (empty = now)</label><input data-k="startsAt" data-i="${i}" type="datetime-local" value="${toLocal(p.startsAt)}"></div>
+      <div class="fld"><label>Ends (empty = until paused)</label><input data-k="endsAt" data-i="${i}" type="datetime-local" value="${toLocal(p.endsAt)}"></div>
+      <div class="fld full"><label>Applies to (none ticked = ALL sets)</label><div class="arow">${cats.map(c=>`<label style="display:inline-flex;align-items:center;gap:7px;font-size:14px;border:1px solid var(--line2);border-radius:99px;padding:7px 14px"><input type="checkbox" data-cat="${esc(c.id)}" data-i="${i}" ${(p.categoryIds||[]).includes(c.id)?'checked':''} style="width:auto"> ${esc(c.name)}</label>`).join('')}</div></div>
+      <div class="fld full"><label>Banner text (replaces the announcement bar while running; empty = no banner)</label><input data-k="banner" data-i="${i}" value="${esc(p.banner||'')}" maxlength="140" placeholder="EID SALE • 15% OFF ALL SETS • ENDS 7 APRIL"></div>
+      <div class="fld"><div class="switchrow"><div><b>Active</b><span>Turn off to pause without deleting</span></div><label class="tgl"><input type="checkbox" data-k="active" data-i="${i}" ${p.active!==false?'checked':''}><i></i></label></div></div>
+      <div class="fld"><button class="abtn danger sm" data-del="${i}">Delete promotion</button></div>
+    </div></div>`).join('')}
+    <p class="asub">If a set also has its own sale price, customers always get the lower price. Coupons still apply on top at checkout.</p>`;
+    pane.querySelectorAll('[data-k]').forEach(el=>el.onchange=()=>{ const p=L[+el.dataset.i], k=el.dataset.k;
+      p[k]= k==='active'?el.checked : k==='value'?Number(el.value) : (k==='startsAt'||k==='endsAt')?fromLocal(el.value) : el.value;
+      if(k==='value'||k==='type') draw(); });
+    pane.querySelectorAll('[data-cat]').forEach(el=>el.onchange=()=>{ const p=L[+el.dataset.i]; const s=new Set(p.categoryIds||[]);
+      el.checked?s.add(el.dataset.cat):s.delete(el.dataset.cat); p.categoryIds=[...s]; });
+    pane.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{ if(!confirm('Delete this promotion? (Press Save to apply)')) return; L.splice(+b.dataset.del,1); draw(); });
+    document.getElementById('pr_add').onclick=()=>{ L.unshift({name:'',type:'percent',value:10,categoryIds:[],startsAt:null,endsAt:null,banner:'',active:true}); draw(); };
+    document.getElementById('pr_save').onclick=async()=>{
+      try{ await api('/api/admin/promotions',{method:'PUT',body:{promotions:L}}); toast('Promotions saved — prices updated on the site',true); vPromos(pane); }
+      catch(e){ toast(e.message); }
+    };
+  }
+  draw();
+}
+
 async function vCoupons(pane){
   A.coupons=(await api('/api/admin/coupons')).coupons;
   pane.innerHTML=head('Coupons','Discount codes for campaigns')+`
@@ -704,7 +850,8 @@ async function vSettings(pane){
   <div class="panel" style="margin-bottom:18px"><h2>Brand</h2><div class="aform">
     <div class="fld"><label>Name</label><input id="s_bn" value="${esc(s.brand.name)}"></div>
     <div class="fld"><label>EST</label><input id="s_be" value="${esc(s.brand.est)}"></div>
-    <div class="fld full"><label>Tagline</label><input id="s_bt" value="${esc(s.brand.tagline)}"></div>
+    <div class="fld full"><label>Tagline (shown in the footer of every page)</label><input id="s_bt" value="${esc(s.brand.tagline)}">
+      <span class="asub" style="font-size:12.5px">Suggestion for a poster shop: "Wall culture, six posters at a time" <button type="button" class="abtn ghost sm" onclick="document.getElementById('s_bt').value='Wall culture, six posters at a time'">Use</button></span></div>
     <div class="fld full"><label>Announcement bar</label><input id="s_an" value="${esc(s.announcement)}"></div>
   </div></div>
   <div class="panel" style="margin-bottom:18px"><h2>Contact & socials</h2><div class="aform">
@@ -899,6 +1046,7 @@ async function runView(pane){
     else if(A.tab==='home') await vHome(pane);
     else if(A.tab==='inv') await vInv(pane);
     else if(A.tab==='coupons') await vCoupons(pane);
+    else if(A.tab==='promos') await vPromos(pane);
     else if(A.tab==='pay') await vPay(pane);
   else if(A.tab==='settings') await vSettings(pane);
 }

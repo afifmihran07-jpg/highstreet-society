@@ -948,3 +948,30 @@ footer.site{margin-top:48px}
 .card .setno{font-size:11px}
 /* accent word applies wherever a section heading appears, not just .shead */
 .insta h2 .l{color:var(--lime)}
+
+/* ---------- Phase 3: promotions, discovery, mobile buying ---------- */
+.announce.promo{background:var(--pink);color:#0B0B0F}
+.promoline{display:inline-block;margin:-4px 0 14px;font-size:13px;font-weight:800;color:var(--pink);background:rgba(244,114,182,.12);border:1px solid rgba(244,114,182,.35);padding:5px 13px;border-radius:99px}
+.shophead .catdesc{color:var(--mut);margin-top:6px;max-width:640px}
+.freeship{background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px;margin-bottom:14px}
+.freeship p{font-size:13.5px;margin:0 0 8px}
+.freeship .bar{height:6px;border-radius:99px;background:var(--line2);overflow:hidden}
+.freeship .bar i{display:block;height:100%;background:var(--lime);border-radius:99px;transition:width .3s}
+.stickybuy{display:none}
+@media (max-width:700px){
+  .stickybuy{display:flex;align-items:center;gap:12px;position:fixed;left:0;right:0;z-index:59;
+    bottom:calc(66px + env(safe-area-inset-bottom));padding:10px 14px;background:rgba(16,16,22,.96);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);
+    transform:translateY(140%);transition:transform .22s ease;visibility:hidden}
+  .stickybuy.on{transform:none;visibility:visible}
+  .stickybuy .sb-p{flex:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-width:0}
+  .stickybuy .sb-p b{font-size:18px}
+  .stickybuy .sb-p s{color:var(--dim);font-size:13px}
+  .stickybuy .sb-p span{flex-basis:100%;font-size:12px;color:var(--mut)}
+  .stickybuy .btn{padding:12px 20px;white-space:nowrap}
+}
+@media (prefers-reduced-motion:reduce){.stickybuy{transition:none}}
+@media (max-width:700px){
+  .wafab{transition:transform .22s ease}
+  body.has-stickybuy .wafab{transform:translateY(-76px)}
+}

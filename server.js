@@ -71,7 +71,40 @@ const GEO_ETAG = '"geo-'+crypto.createHash('md5').update(GEO_JSON).digest('hex')
 const DISTRICTS = {};
 GEO.forEach(d=>d.districts.forEach(t=>{ DISTRICTS[t.name.toLowerCase()] = { division:d.name, areas:new Set(t.areas.map(a=>a.toLowerCase())) }; }));
 
-app.set('trust proxy', true);
+/* Client IP (SEC-1). Production traffic arrives as
+     visitor -> Cloudflare -> Render load balancer -> this app
+   and each hop APPENDS to X-Forwarded-For; nothing strips what the visitor
+   sent. `trust proxy: true` used the LEFT-most entry, which the visitor
+   controls, so rate limits could be dodged by rotating fake IPs.
+   We now trust only infrastructure addresses (loopback/private/CGNAT ranges
+   used by Render internally, and Cloudflare's published edge ranges) and take
+   the right-most address that is NOT one of them: the IP Cloudflare saw.
+   Anything a visitor injects sits to the left of that and is ignored.
+   Override with TRUST_PROXY (a hop count like "2", "false", or a
+   comma-separated list of CIDRs/presets) if the hosting chain changes;
+   verify with GET /api/admin/client-ip. */
+const CLOUDFLARE_CIDRS = [
+  '173.245.48.0/20','103.21.244.0/22','103.22.200.0/22','103.31.4.0/22','141.101.64.0/18','108.162.192.0/18',
+  '190.93.240.0/20','188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15','104.16.0.0/13',
+  '104.24.0.0/14','172.64.0.0/13','131.0.72.0/22',
+  '2400:cb00::/32','2606:4700::/32','2803:f800::/32','2405:b500::/32','2405:8100::/32','2a06:98c0::/29','2c0f:f248::/32'
+];
+function trustProxySetting(v){
+  v = String(v == null ? '' : v).trim();
+  if(!v){
+    // Hop 0 is whoever opened the TCP connection. On Render that can only be
+    // Render's own load balancer (the app port is not publicly reachable), so
+    // always trust it, whatever its address; the forwarded entries are
+    // trusted only when they are private/CGNAT/Cloudflare addresses.
+    const infra = require('proxy-addr').compile(['loopback', 'linklocal', 'uniquelocal', '100.64.0.0/10', ...CLOUDFLARE_CIDRS]);
+    return (addr, i) => i === 0 || infra(addr, i);
+  }
+  if(/^\d+$/.test(v)) return parseInt(v, 10);
+  if(v === 'false') return false;
+  if(v === 'true'){ console.warn('[hss] TRUST_PROXY=true trusts client-supplied X-Forwarded-For (spoofable); ignoring'); return trustProxySetting(''); }
+  return v.split(',').map(s => s.trim()).filter(Boolean);
+}
+app.set('trust proxy', trustProxySetting(process.env.TRUST_PROXY));
 
 /* CORS — allow-list only.
    The storefront and admin are served from the same origin as the API, so
@@ -193,11 +226,55 @@ async function initializePersistenceLayer() {
 const uid = (p='') => p + crypto.randomBytes(8).toString('hex');
 const slugify = s => String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || ('item-'+Date.now().toString(36));
 function hash(pw, salt){ return crypto.scryptSync(String(pw), salt, 64).toString('hex'); }
-function effPrice(p){ return (p.salePrice && p.salePrice < p.price) ? p.salePrice : p.price; }
+/* ---------------- promotions (scheduled sales) ----------------
+   Stored as JSON in the content store under the reserved key "_promotions"
+   (content_pages row), so no database schema change is needed. Each promotion:
+   { id, name, active, type:'percent'|'flat', value, categoryIds:[] (empty = all
+   sets), startsAt, endsAt (ms or null), banner }. A running promotion lowers
+   the price of matching sets; the customer always gets the LOWEST of the
+   regular price, the set's own sale price and the promotion price. Every price
+   path (cards, product page, cart tracking, ORDERS) goes through effPrice(). */
+const PROMO_KEY = '_promotions';
+let promoCache = { raw: null, list: [] };
+function promotions(){
+  const raw = (db.content && db.content[PROMO_KEY] && db.content[PROMO_KEY].body) || '[]';
+  if(raw !== promoCache.raw){
+    let list = []; try{ list = JSON.parse(raw); }catch(_){}
+    promoCache = { raw, list: Array.isArray(list) ? list : [] };
+  }
+  return promoCache.list;
+}
+function promoRunning(pr, now = Date.now()){
+  return !!(pr && pr.active && pr.value > 0 && (!pr.startsAt || pr.startsAt <= now) && (!pr.endsAt || now < pr.endsAt));
+}
+function promoFor(p, now = Date.now()){
+  let best = null, bestPrice = Infinity;
+  for(const pr of promotions()){
+    if(!promoRunning(pr, now)) continue;
+    if((pr.categoryIds||[]).length && !(p.categoryIds||[]).some(c => pr.categoryIds.includes(c))) continue;
+    const price = promoPrice(p.price, pr);
+    if(price < bestPrice){ bestPrice = price; best = pr; }
+  }
+  return best ? { promo: best, price: bestPrice } : null;
+}
+function promoPrice(base, pr){
+  const v = pr.type === 'flat' ? base - pr.value : base * (1 - pr.value / 100);
+  return Math.max(1, Math.round(v));
+}
+function effPrice(p){
+  let price = (p.salePrice && p.salePrice < p.price) ? p.salePrice : p.price;
+  const pr = promoFor(p);
+  if(pr && pr.price < price) price = pr.price;
+  return price;
+}
 function pubProduct(p){
+  const eff = effPrice(p), pr = promoFor(p);
   return { id:p.id, slug:p.slug, setNo:p.setNo, name:p.name, short:p.short, description:p.description,
-    price:p.price, salePrice:p.salePrice, effPrice: effPrice(p),
-    discountPct: (p.salePrice && p.salePrice < p.price) ? Math.round((1-p.salePrice/p.price)*100) : 0,
+    // salePrice stays the set's OWN sale price (admin screens send it back on
+    // save); effPrice/discountPct include any running promotion.
+    price:p.price, salePrice:p.salePrice, effPrice: eff,
+    discountPct: eff < p.price ? Math.round((1-eff/p.price)*100) : 0,
+    promo: pr && pr.price <= eff ? { name: pr.promo.name || '', endsAt: pr.promo.endsAt || null } : null,
     stock:p.stock, sku:p.sku, categoryIds:p.categoryIds, tags:p.tags, cover:p.cover, posters:p.posters,
     featured:p.featured, isNew:p.isNew, bestseller:p.bestseller, published:p.published,
     allowBackorder:!!p.allowBackorder, inStock: p.stock > 0 || !!p.allowBackorder,
@@ -410,6 +487,14 @@ function requireCustomer(req,res,next){
   next();
 }
 const validMobile = m => /^01[3-9]\d{8}$/.test(String(m||'').trim());
+/* The running promotion with a banner (shown instead of the announcement). */
+function activeBanner(){
+  const now = Date.now();
+  const pr = promotions().filter(x => promoRunning(x, now) && String(x.banner||'').trim())
+    .sort((a,b) => (a.endsAt||Infinity) - (b.endsAt||Infinity))[0];
+  return pr ? { name: pr.name || '', banner: pr.banner, endsAt: pr.endsAt || null,
+    type: pr.type, value: pr.value, categoryIds: pr.categoryIds || [] } : null;
+}
 function publicSettings(){
   const s = db.settings;
   return { brand:s.brand, contact:{ mobile:s.contact.mobile, whatsapp:s.contact.whatsapp, email:s.contact.email,
@@ -417,7 +502,7 @@ function publicSettings(){
     delivery:s.delivery, payments:{ cod:{enabled:s.payments.cod.enabled},
       bkash:{enabled:s.payments.bkash.enabled, number:s.payments.bkash.number, accountType:s.payments.bkash.accountType, instruction:s.payments.bkash.instruction},
       nagad:{enabled:s.payments.nagad.enabled, number:s.payments.nagad.number, accountType:s.payments.nagad.accountType, instruction:s.payments.nagad.instruction} },
-    seo:s.seo, announcement:s.announcement };
+    seo:s.seo, announcement:s.announcement, promo: activeBanner() };
 }
 
 /* ---------------- public: settings / categories / homepage ---------------- */
@@ -986,6 +1071,13 @@ app.post('/api/admin/refresh', async (req,res)=>{
   res.json({ ok:true, token, refresh: fresh });
 });
 app.get('/api/admin/me', requireAdmin, (req,res)=>res.json({ ok:true, username:db.settings.admin.username }));
+// SEC-1 verification: the IP the rate limiter uses for YOU. It should equal
+// your public IP (e.g. from whatismyip.com), never a Cloudflare/Render address.
+app.get('/api/admin/client-ip', requireAdmin, (req,res)=>res.json({
+  ip: req.ip,
+  forwardedHops: String(req.headers['x-forwarded-for'] || '').split(',').filter(s => s.trim()).length,
+  cloudflare: !!req.headers['cf-ray']
+}));
 app.post('/api/admin/logout', requireAdmin, async (req,res)=>{
   delete db.sessions[req.admin.token];
   db.revoked = db.revoked || {}; db.revoked[req.admin.token] = Date.now();
@@ -1195,10 +1287,29 @@ app.get('/api/admin/customers', requireAdmin, (req,res)=>{
 app.get('/api/admin/homepage', requireAdmin, (req,res)=>{
   res.json({ homepage:db.homepage, products:db.products.map(p=>({id:p.id,name:p.name,cover:p.cover,published:p.published,stock:p.stock})), categories:db.categories });
 });
+function homepageBlocks(b){
+  const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  const out = {};
+  if(Array.isArray(b.marquee)) out.marquee = b.marquee.map(x => str(x, 60)).filter(Boolean).slice(0, 8);
+  if(Array.isArray(b.perks)) out.perks = b.perks.map(x => ({ title: str(x && x.title, 60), text: str(x && x.text, 160) }))
+    .filter(x => x.title).slice(0, 6);
+  if(b.sections && typeof b.sections === 'object'){
+    out.sections = {};
+    for(const k of ['new','best','featured','collections']){
+      const x = b.sections[k] || {};
+      out.sections[k] = { title: str(x.title, 60), sub: str(x.sub, 160) };
+    }
+  }
+  if(b.insta && typeof b.insta === 'object') out.insta = { title: str(b.insta.title, 60), text: str(b.insta.text, 200) };
+  return out;
+}
 app.put('/api/admin/homepage', requireAdmin, async (req,res)=>{
   const b=req.body||{}, h=db.homepage;
   const validIds=(arr)=> (Array.isArray(arr)?arr:[]).filter(id=>db.products.some(p=>p.id===id));
-  if(b.hero) ['badge','title','line1','line2','line3','line3Italic','subtitle','ctaText','ctaLink','cta2Text','cta2Link','image'].forEach(k=>{ if(b.hero[k]!==undefined) h.hero[k]=String(b.hero[k]).slice(0,500); });
+  if(b.hero) ['badge','title','line1','line2','line3','line3Italic','subtitle','tagline','strip','ctaText','ctaLink','cta2Text','cta2Link','image'].forEach(k=>{ if(b.hero[k]!==undefined) h.hero[k]=String(b.hero[k]).slice(0,500); });
+  // Editable homepage copy (marquee, section headings, perks, Instagram block).
+  // Kept inside the hero JSON so no database schema change is needed.
+  if(b.blocks) h.hero.blocks = homepageBlocks(b.blocks);
   if(b.featuredIds) h.featuredIds=validIds(b.featuredIds);
   if(b.newIds) h.newIds=validIds(b.newIds);
   if(b.bestsellerIds) h.bestsellerIds=validIds(b.bestsellerIds);
@@ -1207,6 +1318,69 @@ app.put('/api/admin/homepage', requireAdmin, async (req,res)=>{
   if(b.showSections) Object.assign(h.showSections, b.showSections);
   await saveDB(); res.json({ ok:true, homepage:h });
 });
+/* ---------- admin: promotions (scheduled sales) ---------- */
+function cleanPromo(x){
+  const num = v => (v === '' || v == null) ? null : Number(v);
+  const id = String(x.id || '').match(/^pr[a-z0-9]{4,20}$/) ? x.id : uid('pr').slice(0, 12);
+  const pr = { id, name: String(x.name || '').trim().slice(0, 60), active: x.active !== false,
+    type: x.type === 'flat' ? 'flat' : 'percent', value: Number(x.value) || 0,
+    categoryIds: (Array.isArray(x.categoryIds) ? x.categoryIds : []).filter(c => db.categories.some(k => k.id === c)),
+    startsAt: num(x.startsAt), endsAt: num(x.endsAt), banner: String(x.banner || '').trim().slice(0, 140) };
+  if(!pr.name) return { error: 'Give the promotion a name' };
+  if(!(pr.value > 0)) return { error: `"${pr.name}": discount must be greater than 0` };
+  if(pr.type === 'percent' && pr.value >= 90) return { error: `"${pr.name}": a percentage discount must be below 90%` };
+  if(pr.startsAt !== null && !Number.isFinite(pr.startsAt)) return { error: `"${pr.name}": invalid start date` };
+  if(pr.endsAt !== null && !Number.isFinite(pr.endsAt)) return { error: `"${pr.name}": invalid end date` };
+  if(pr.startsAt && pr.endsAt && pr.endsAt <= pr.startsAt) return { error: `"${pr.name}": end must be after start` };
+  return { promo: pr };
+}
+app.get('/api/admin/promotions', requireAdmin, (req,res)=>{
+  const now = Date.now();
+  res.json({ promotions: promotions().map(pr => ({ ...pr, running: promoRunning(pr, now),
+    status: !pr.active ? 'paused' : promoRunning(pr, now) ? 'running' : (pr.startsAt && pr.startsAt > now ? 'scheduled' : 'ended') })) });
+});
+app.put('/api/admin/promotions', requireAdmin, async (req,res)=>{
+  const list = Array.isArray(req.body.promotions) ? req.body.promotions.slice(0, 20) : null;
+  if(!list) return res.status(400).json({ error: 'promotions[] required' });
+  const out = [];
+  for(const x of list){ const r = cleanPromo(x || {}); if(r.error) return res.status(400).json({ error: r.error }); out.push(r.promo); }
+  db.content = db.content || {};
+  db.content[PROMO_KEY] = { title: 'Promotions (internal)', body: JSON.stringify(out), updatedAt: Date.now() };
+  await saveDB(); res.json({ ok: true, promotions: out });
+});
+
+/* ---------- admin: bulk product actions ---------- */
+app.post('/api/admin/products/bulk', requireAdmin, async (req,res)=>{
+  const ids = Array.isArray(req.body.ids) ? req.body.ids.map(String) : [];
+  const list = db.products.filter(p => ids.includes(p.id));
+  if(!list.length) return res.status(400).json({ error: 'Select at least one set' });
+  const action = String(req.body.action || ''), v = req.body.value;
+  const n = Number(v);
+  const FLAGS = ['featured','isNew','bestseller'];
+  const apply = {
+    price:      p => { if(!(n > 0)) throw new Error('Price must be greater than 0');
+                       p.price = Math.round(n); if(p.salePrice && p.salePrice >= p.price) p.salePrice = null; },
+    sale:       p => { if(!(n > 0 && n < p.price)) throw new Error(`Sale price must be lower than the regular price of "${p.name}" (${p.price})`); p.salePrice = Math.round(n); },
+    salePercent:p => { if(!(n > 0 && n < 90)) throw new Error('Percentage must be between 1 and 89'); p.salePrice = Math.max(1, Math.round(p.price * (1 - n/100))); },
+    clearSale:  p => { p.salePrice = null; },
+    publish:    p => { p.published = true; },
+    hide:       p => { p.published = false; },
+    stock:      p => { if(!(Number.isInteger(n) && n >= 0)) throw new Error('Stock must be a whole number ≥ 0'); p.stock = n; },
+    addCategory:p => { if(!db.categories.some(c => c.id === v)) throw new Error('Unknown category');
+                       p.categoryIds = [...new Set([...(p.categoryIds||[]), v])]; },
+    removeCategory: p => { p.categoryIds = (p.categoryIds||[]).filter(c => c !== v); },
+    flagOn:     p => { if(!FLAGS.includes(v)) throw new Error('Unknown flag'); p[v] = true; },
+    flagOff:    p => { if(!FLAGS.includes(v)) throw new Error('Unknown flag'); p[v] = false; }
+  }[action];
+  if(!apply) return res.status(400).json({ error: 'Unknown bulk action' });
+  // validate on copies first so a failure leaves nothing half-applied
+  try{ list.forEach(p => apply(JSON.parse(JSON.stringify(p)))); }
+  catch(e){ return res.status(400).json({ error: e.message }); }
+  const now = Date.now();
+  list.forEach(p => { apply(p); p.updatedAt = now; });
+  await saveDB(); res.json({ ok: true, updated: list.length });
+});
+
 app.get('/api/admin/coupons', requireAdmin, (req,res)=>res.json({ coupons:db.coupons }));
 app.post('/api/admin/coupons', requireAdmin, async (req,res)=>{
   const code=String(req.body.code||'').toUpperCase().trim();
@@ -1330,12 +1504,14 @@ app.delete('/api/admin/carts/:key', requireAdmin, async (req,res)=>{
 
 /* ---------------- admin: CMS content pages ---------------- */
 app.get('/api/content/:key', (req,res)=>{
-  const c=(db.content||{})[req.params.key];
+  // keys starting with "_" hold internal data (e.g. scheduled promotions)
+  const c=req.params.key.startsWith('_') ? null : (db.content||{})[req.params.key];
   if(!c) return res.status(404).json({ error:'Page not found' });
   res.json(c);
 });
-app.get('/api/admin/content', requireAdmin, (req,res)=>res.json({ content: db.content||{} }));
+app.get('/api/admin/content', requireAdmin, (req,res)=>res.json({ content: Object.fromEntries(Object.entries(db.content||{}).filter(([k])=>!k.startsWith('_'))) }));
 app.put('/api/admin/content/:key', requireAdmin, async (req,res)=>{
+  if(req.params.key.startsWith('_')) return res.status(400).json({ error:'Reserved content key' });
   db.content=db.content||{};
   const cur=db.content[req.params.key]||{ title:'', body:'' };
   if(req.body.title!==undefined) cur.title=String(req.body.title).slice(0,160);

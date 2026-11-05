@@ -178,3 +178,49 @@ test('uploads: extension comes from the validated type, not the filename', async
   const r2 = await fetch(s.base + '/api/admin/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + tok }, body: bad });
   assert.equal(r2.status, 400);
 });
+
+/* SEC-1: client IP behind Cloudflare -> Render. The test client connects from
+   loopback (playing the Render load balancer); X-Forwarded-For is built the way
+   the real chain builds it: <whatever the visitor sent>, <visitor IP added by
+   Cloudflare>, <Cloudflare edge IP added by Render>. */
+const CF_EDGE = '172.64.0.5';
+const viaChain = (spoofed, real) => ({ 'X-Forwarded-For': [spoofed, real, CF_EDGE].filter(Boolean).join(', ') });
+const badLogin = (s, headers) => s.json('/api/admin/login', { method: 'POST', body: { username: 'x', password: 'y' }, headers });
+
+test('SEC-1: rotating spoofed X-Forwarded-For entries does not escape the login rate limit', async t => {
+  const s = await startServer();
+  t.after(s.stop);
+  const codes = [];
+  for (let i = 0; i < 12; i++) codes.push((await badLogin(s, viaChain(`10.9.8.${i}, 1.2.3.${i}`, '203.0.113.9'))).status);
+  assert.deepEqual(codes.slice(0, 10), Array(10).fill(401));
+  assert.deepEqual(codes.slice(10), [429, 429], codes.join(' '));
+});
+
+test('SEC-1: legitimate visitors behind the same proxies keep separate limits; client IP is the real one', async t => {
+  const s = await startServer();
+  t.after(s.stop);
+  for (let i = 0; i < 11; i++) await badLogin(s, viaChain(null, '198.51.100.1'));
+  assert.equal((await badLogin(s, viaChain(null, '198.51.100.1'))).status, 429, 'visitor A is limited');
+  assert.equal((await badLogin(s, viaChain(null, '198.51.100.2'))).status, 401, 'visitor B is not affected by A');
+  // IPv6 visitor + Cloudflare IPv6 edge
+  const v6 = { 'X-Forwarded-For': '2001:db8::77, 2606:4700::1' };
+  const login = await s.json('/api/admin/login', { method: 'POST', body: { username: 'hssadmin', password: 'admin123' }, headers: v6 });
+  assert.equal(login.status, 200);
+  const who = await s.json('/api/admin/client-ip', { headers: { Authorization: 'Bearer ' + login.data.token, ...viaChain('6.6.6.6', '203.0.113.50') } });
+  assert.equal(who.status, 200);
+  assert.equal(who.data.ip, '203.0.113.50', 'spoofed 6.6.6.6 must be ignored');
+  assert.equal((await s.json('/api/admin/client-ip')).status, 401, 'diagnostic is admin-only');
+});
+
+test('SEC-1: TRUST_PROXY override; "true" is refused as spoofable', async t => {
+  const s = await startServer({ TRUST_PROXY: 'false' });
+  t.after(s.stop);
+  const tok = await adminToken(s);
+  const who = await s.json('/api/admin/client-ip', { headers: { Authorization: 'Bearer ' + tok, ...viaChain('6.6.6.6', '203.0.113.50') } });
+  assert.match(who.data.ip, /127\.0\.0\.1/);
+  const s2 = await startServer({ TRUST_PROXY: 'true' });
+  t.after(s2.stop);
+  const tok2 = await adminToken(s2);
+  const who2 = await s2.json('/api/admin/client-ip', { headers: { Authorization: 'Bearer ' + tok2, ...viaChain('6.6.6.6', '203.0.113.50') } });
+  assert.equal(who2.data.ip, '203.0.113.50');
+});

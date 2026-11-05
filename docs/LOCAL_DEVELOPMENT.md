@@ -90,6 +90,7 @@ npm run dev
 | `RENDER` | server | Set automatically by Render; marks production |
 | `SITE_URL` | server | Public base URL used for canonical links, `og:url`, absolute `og:image` and the sitemap (default `https://highstreet-society.onrender.com`). Set it if you move to a custom domain. |
 | `CORS_ORIGINS` | server | Comma-separated extra origins allowed to call the API with credentials. Empty by default (the site itself needs none). |
+| `TRUST_PROXY` | server | Which proxies may set the client IP. Default: the direct peer, private/CGNAT ranges and Cloudflare edges (correct for Render behind Cloudflare). Override with a hop count, `false`, or CIDR list. `true` is refused (spoofable). Check with `GET /api/admin/client-ip`. |
 | `HSS_IMG_CACHE_DIR` | server | Disk cache for resized product images served by `/img` (default: OS temp dir) |
 | `HSS_EXPORT_BASE_URL` | export | Live site URL for `--source site` (default the Render URL) |
 | `HSS_EXPORT_DATABASE_URL` | export | Only for `--source db` (below) |

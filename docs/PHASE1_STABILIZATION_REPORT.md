@@ -199,7 +199,9 @@ All runs were against a throwaway local server on a temporary copy of the live c
 6. Remove `SUPABASE_SECRET_KEY` from your local `.env`; nothing local needs it.
 7. Optional: decide whether to use Supabase image transformations instead of the built-in `/img` (cost decision). No action is needed to keep `/img`.
 
-### Post-deployment security task (open)
+### Post-deployment security task
+
+> **SEC-1 status: fixed locally (Phase 3), awaiting deploy approval.** `trust proxy` now trusts only the direct peer (Render LB), private/CGNAT ranges and Cloudflare edge ranges; the client IP is the right-most other address. Tests: `tests/security.test.js` (SEC-1 ×3). Verify after deploy: log in to admin, open `/api/admin/client-ip`; `ip` must equal your public IP.
 
 - **SEC-1: rate-limit IP spoofing.** `app.set('trust proxy', true)` takes the client IP from the left-most `X-Forwarded-For` entry, which the client controls. Login, register, order and tracking limits can therefore be bypassed by rotating fake IPs (confirmed in the release review). The reset-code limit (per mobile number) is unaffected.
   - **Fix:** inspect the headers Render actually forwards on the live service. Then set the exact trusted hop count (e.g. `app.set('trust proxy', 1)`), or key the limiter on Render's client-IP header. Add a regression test that a spoofed `X-Forwarded-For` still gets 429.

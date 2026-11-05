@@ -231,7 +231,7 @@ H.card = p => {
       <a href="/product/${p.slug}"><h3>${H.esc(p.name)}</h3></a>
       <span class="meta">${p.type==='clothing'?((p.sizes||[]).map(x=>H.esc(x.size)).join(' · ')||'Apparel'):p.type==='combo'?((p.bundleItems||[]).length+' items in bundle'):'6 posters • '+H.esc(p.posterSize||'A4')+' • '+H.esc(p.boardThickness||'3mm')+' board'}</span>
       <div class="prow">
-        <span class="price">${p.salePrice&&p.salePrice<p.price?`<s>${H.money(p.price)}</s>`:''}${H.money(p.effPrice)}</span>
+        <span class="price">${p.effPrice<p.price?`<s>${H.money(p.price)}</s>`:''}${H.money(p.effPrice)}</span>
         ${out?'<span class="meta">Restocking soon</span>':(p.sizes&&p.sizes.length?`<a class="addbtn" href="/product/${p.slug}">PICK SIZE</a>`:`<button class="addbtn" onclick="HSS.addToCart('${p.id}')">ADD +</button>`)}
       </div>
     </div>
@@ -276,7 +276,9 @@ H.renderLayout = async (active='') => {
   if(!cached) await refresh;
 };
 function paintLayout(active, s){
-  if(s.announcement){ const a=document.getElementById('announce'); if(a) a.textContent=s.announcement; }
+  // A running promotion's banner takes over the announcement bar while it lasts.
+  const ann=(s.promo&&s.promo.banner)||s.announcement;
+  if(ann){ const a=document.getElementById('announce'); if(a){ a.textContent=ann; a.classList.toggle('promo',!!(s.promo&&s.promo.banner)); } }
   const hdr = document.getElementById('hdr');
   if(hdr){
     hdr.innerHTML = `<div class="wrap hbar">

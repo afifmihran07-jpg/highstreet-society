@@ -34,9 +34,12 @@ try{
   LIMGS = GIMGS;
   const out = !(P.stock>0||P.allowBackorder);
   const low = !out && P.stock<=5;
+  const del = (H.settings && H.settings.delivery) || null;
+  const cat = (await H.loadCats().catch(()=>[])).find(c=>(P.categoryIds||[]).includes(c.id));
+  const promoLine = P.promo ? `<div class="promoline">🔥 ${H.esc(P.promo.name||'Sale')}${P.promo.endsAt?' • ends '+new Date(P.promo.endsAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):''}</div>` : '';
 
   el.innerHTML = `
-  <div class="crumbs"><a href="/">Home</a> / <a href="/shop">Shop</a> / <span>${H.esc(P.name)}</span></div>
+  <div class="crumbs"><a href="/">Home</a> / <a href="/shop">Shop</a> / ${cat?`<a href="/shop?cat=${encodeURIComponent(cat.id)}">${H.esc(cat.name)}</a> / `:''}<span>${H.esc(P.name)}</span></div>
   <div class="pdp">
     <div class="gal">
       <div class="gmain" onclick="POPEN(${0})" id="gmain">
@@ -52,7 +55,7 @@ try{
       <span class="setno">${P.type==='poster'?'SET '+H.esc(P.setNo||'--'):H.esc((P.type||'').toUpperCase())} ${P.isNew?'• NEW':''} ${P.bestseller?'• BESTSELLER':''}</span>
       <h1>${H.esc(P.name)}</h1>
       <p class="sub">${H.esc(P.short||'')}</p>
-      <div class="pricerow"><span class="now">${H.money(P.effPrice)}</span>${P.salePrice&&P.salePrice<P.price?`<s>${H.money(P.price)}</s><span class="savechip">SAVE ${P.discountPct}%</span>`:''}</div>
+      <div class="pricerow"><span class="now">${H.money(P.effPrice)}</span>${P.effPrice<P.price?`<s>${H.money(P.price)}</s><span class="savechip">SAVE ${P.discountPct}%</span>`:''}</div>${promoLine}
       <div class="stockline"><span class="dot ${out?'out':low?'low':''}"></span>${out?'<span style="color:var(--danger)">Out of stock — restocking soon</span>':low?`<span style="color:var(--gold)">Only ${P.stock} set(s) left!</span>`:'<span style="color:var(--ok)">In stock, ready to ship</span>'}</div>
       ${P.type==='poster'?`<div class="specbox">
         <div><b>6</b><span>posters / set</span></div>
@@ -67,7 +70,7 @@ try{
         <div class="sizehead"><label>Select size *</label><span id="sizehint">Please choose a size</span></div>
         <div class="sizes" id="sizes">${P.sizes.map(x=>`<button type="button" class="sz${x.stock<=0?' out':''}" data-size="${H.esc(x.size)}" data-stock="${x.stock}" ${x.stock<=0?'disabled':''}>${H.esc(x.size)}${x.stock<=0?'<i>sold out</i>':''}</button>`).join('')}</div>
       </div>`:''}
-      ${out?'':`<div class="buyrow">
+      ${out?'':`<div class="buyrow" id="mainbuy">
         <div class="qty"><button onclick="PQTY(-1)">−</button><b id="pq">1</b><button onclick="PQTY(1)">+</button></div>
         <button class="btn btn-lime" onclick="PADD()">Add to Cart</button>
       </div>
@@ -81,12 +84,12 @@ try{
         <details><summary>Size & material</summary><div class="ab">${P.type==='poster'
   ? `• 6 different ${H.esc(P.posterSize||'A4')} posters (21 × 29.7 cm)<br>• Printed/mounted on rigid ${H.esc(P.boardThickness||'3mm')} premium board<br>• Ready to hang — no frames needed`
   : (P.sizes&&P.sizes.length ? '• Available sizes: '+P.sizes.map(x=>H.esc(x.size)).join(', ') : '• One size')}<br>• SKU: ${H.esc(P.sku||'—')}</div></details>
-        <details><summary>Delivery & payment</summary><div class="ab">• Inside Dhaka: ${H.money(H.settings.delivery.inside)} • Outside Dhaka: ${H.money(H.settings.delivery.outside)}<br>• Cash on Delivery, bKash & Nagad accepted<br>• Track your order anytime with your Order ID + mobile number</div></details>
+        <details><summary>Delivery & payment</summary><div class="ab">${del?`• Inside Dhaka: ${H.money(del.inside)} • Outside Dhaka: ${H.money(del.outside)}${del.freeAbove>0?` • Free delivery over ${H.money(del.freeAbove)}`:''}<br>`:''}• Cash on Delivery, bKash & Nagad accepted<br>• Track your order anytime with your Order ID + mobile number</div></details>
       </div>
       ${P.tags&&P.tags.length?`<div class="glabels" style="margin-top:14px">${P.tags.map(t=>`<a href="/shop?q=${encodeURIComponent(t)}"><span>#${H.esc(t)}</span></a>`).join('')}</div>`:''}
     </div>
   </div>
-  ${d.related&&d.related.length?`<section class="block" style="padding-top:10px"><div class="shead"><div><h2>COMPLETE THE <span class="l">WALL</span></h2></div><a class="more" href="/shop">All sets →</a></div><div class="rail">${d.related.map(H.card).join('')}</div></section>`:''}
+  ${d.related&&d.related.length?`<section class="block" style="padding-top:10px"><div class="shead"><div><h2>COMPLETE THE <span class="l">WALL</span></h2></div><a class="more" href="${cat?'/shop?cat='+encodeURIComponent(cat.id):'/shop'}">${cat?'More '+H.esc(cat.name)+' →':'All sets →'}</a></div><div class="rail">${d.related.map(H.card).join('')}</div></section>`:''}
   `;
 
   window.GNAV = dd => {
@@ -127,6 +130,25 @@ try{
   }
   window.PADD = () => { if(needSize()) return; H.addToCart(P.id, qty, chosenSize); };
   window.PBUY = () => { if(needSize()) return; H.addToCart(P.id, qty, chosenSize); location.href='/checkout'; };
+
+  /* Mobile: sticky buy bar once the main Add-to-cart buttons scroll away. */
+  const mainBuy = document.getElementById('mainbuy');
+  if(mainBuy && 'IntersectionObserver' in window){
+    const bar = document.createElement('div');
+    bar.className = 'stickybuy'; bar.setAttribute('aria-hidden','true');
+    bar.innerHTML = `<div class="sb-p"><b>${H.money(P.effPrice)}</b>${P.effPrice<P.price?`<s>${H.money(P.price)}</s>`:''}<span>6 posters • ${H.esc(P.posterSize||'A4')}</span></div>
+      <button class="btn btn-lime" onclick="PADD()">Add to cart</button>`;
+    document.body.appendChild(bar);
+    // sit exactly on top of the mobile tab bar (its height varies with safe-area insets)
+    const place = () => { const tb = document.querySelector('.tabbar');
+      bar.style.bottom = tb && getComputedStyle(tb).display !== 'none' ? tb.getBoundingClientRect().height + 'px' : '0px'; };
+    place(); addEventListener('resize', place);
+    new IntersectionObserver(([e])=>{
+      const on = !e.isIntersecting && e.boundingClientRect.top < 0;
+      bar.classList.toggle('on', on); bar.setAttribute('aria-hidden', on?'false':'true');
+      document.body.classList.toggle('has-stickybuy', on);   // lifts the WhatsApp button above the bar
+    }).observe(mainBuy);
+  }
 
   /* ---------- reviews ---------- */
   const rv=document.createElement('div'); rv.className='wrap'; rv.id='rvsec';

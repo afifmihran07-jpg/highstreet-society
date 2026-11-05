@@ -1,4 +1,6 @@
-/* HSS homepage — editorial collage hero (mobile-first) */
+/* HSS homepage — editorial collage hero (mobile-first).
+   Every piece of copy comes from Admin → Homepage; the defaults below are only
+   used for fields the admin left empty and describe the poster-only business. */
 (async function(){
 const H = HSS;
 // Section headings share one system: UPPERCASE with the last word accented.
@@ -9,15 +11,43 @@ const hl = t => {
   const last = w.pop();
   return H.esc(w.join(' ')) + ' <span class="l">' + H.esc(last) + '</span>';
 };
+const DEF = {
+  line1: 'SIX POSTERS.', line2: 'ONE VIBE.', line3: 'YOUR', line3Italic: 'walls.',
+  subtitle: 'Premium A4 poster sets on 3mm board: six matching designs, ready to hang. Delivered all over Bangladesh.',
+  tagline: 'A4 • 3MM BOARD • 6 POSTERS PER SET',
+  strip: 'PREMIUM A4 POSTER SETS • 3MM BOARD',
+  marquee: ['NEW SETS EVERY DROP', 'NATIONWIDE DELIVERY', '6 POSTERS PER SET', 'CASH ON DELIVERY'],
+  sections: {
+    new: { title: 'New arrivals', sub: 'The latest poster sets, just dropped.' },
+    best: { title: 'Cult favourites', sub: 'The sets everyone is hanging right now.' },
+    collections: { title: 'Shop by vibe', sub: 'Find the wall aesthetic that feels like you.' },
+    featured: { title: 'Featured sets', sub: 'Hand-picked by the HSS crew.' }
+  },
+  perks: [
+    { title: 'Six posters, one set', text: 'Six matching A4 designs, curated to hang together.' },
+    { title: '3mm premium board', text: 'Thick, rigid and durable. No frames needed.' },
+    { title: 'Delivered all over BD', text: 'Every district and thana. Cash on delivery available.' },
+    { title: 'Curated themed drops', text: 'Anime, football, Marvel, music, motorsport and more.' }
+  ],
+  insta: { title: 'Follow the society', text: 'New drops, room inspo & behind-the-scenes, first on Instagram.' }
+};
+const DEFAULT_HERO_IMG = '/images/hero-collage.png';
 const el = document.getElementById('content');
 try{
   const [d] = await Promise.all([ H.api('/api/homepage'), H.renderLayout('home') ]);
   const show = d.showSections||{};
   const hero = d.hero||{};
-  const l1 = H.esc(hero.line1 || 'WEAR THE');
-  const l2 = H.esc(hero.line2 || 'CULTURE.');
-  const l3 = H.esc(hero.line3 || 'LIVE');
-  const l3i = H.esc(hero.line3Italic || 'the space.');
+  const B = hero.blocks||{};
+  const sec = k => { const x = (B.sections||{})[k] || {}; return { title: x.title || DEF.sections[k].title, sub: x.sub || DEF.sections[k].sub }; };
+  const marquee = (B.marquee && B.marquee.length ? B.marquee : DEF.marquee);
+  const perks = (B.perks && B.perks.length ? B.perks : DEF.perks);
+  const insta = { title: (B.insta||{}).title || DEF.insta.title, text: (B.insta||{}).text || DEF.insta.text };
+  const v = k => H.esc(hero[k] || DEF[k]);
+  const img = hero.image && hero.image !== DEFAULT_HERO_IMG ? hero.image : '';
+  const block = (k, cls, items, link) => { const s = sec(k); return `<div class="wrap"><section class="block">
+    <div class="shead"><div><h2>${hl(s.title)}</h2>${s.sub?`<p>${H.esc(s.sub)}</p>`:''}</div>${link}</div>
+    <div class="${cls}">${items}</div>
+  </section></div>`; };
 
   el.innerHTML = `
   ${show.hero===false?'':`<section class="hero2">
@@ -25,74 +55,58 @@ try{
     <div class="wrap hero2-in">
       <div class="hero2-tx">
         ${hero.badge?`<span class="pill"><i></i>${H.esc(hero.badge)}</span>`:''}
-        <h1>${l1}<br>${l2}<br>${l3} <em>${l3i}</em></h1>
-        <p>${H.esc(hero.subtitle||'Contemporary pieces for the streets and your walls.')}</p>
-        <div class="hero2-kv">QUALITY • COMFORT • CULTURE</div>
+        <h1>${v('line1')}<br>${v('line2')}<br>${v('line3')} <em>${v('line3Italic')}</em></h1>
+        <p>${v('subtitle')}</p>
+        <div class="hero2-kv">${v('tagline')}</div>
         <div class="cta">
-          <a class="btn btn-lime" href="${H.esc(hero.ctaLink||'/shop')}">${H.esc(hero.ctaText||'Shop the Collection')} &nbsp;→</a>
-          <a class="btn btn-ghost" href="${H.esc(hero.cta2Link||'/shop?filter=new')}">${H.esc(hero.cta2Text||'Explore Posters')} &nbsp;→</a>
+          <a class="btn btn-lime" href="${H.esc(hero.ctaLink||'/shop')}">${H.esc(hero.ctaText||'Shop all sets')} &nbsp;→</a>
+          <a class="btn btn-ghost" href="${H.esc(hero.cta2Link||'/shop?filter=new')}">${H.esc(hero.cta2Text||'New arrivals')} &nbsp;→</a>
         </div>
       </div>
       <div class="hero2-art">
-        <picture>
+        ${img ? `<img src="${H.esc(H.img(img,1200))}" alt="Highstreet Society poster sets" fetchpriority="high" decoding="async" onerror="this.onerror=null;this.src='${H.esc(img)}'">`
+        : `<picture>
           <source media="(max-width:700px)" srcset="/images/hero-collage-sm.webp" type="image/webp">
           <source srcset="/images/hero-collage.webp" type="image/webp">
           <img src="/images/hero-collage.png" alt="Highstreet Society poster sets collage"
                width="1400" height="952" fetchpriority="high" decoding="async">
-        </picture>
+        </picture>`}
       </div>
     </div>
-    <div class="hero2-foot">PREMIUM A4 POSTER SETS • 3MM BOARD</div>
+    <div class="hero2-foot">${v('strip')}</div>
   </section>`}
 
-  ${show.marquee===false?'':`<div class="marquee"><div class="track">${('<span>DROP 01 LIVE <b>✦</b></span><span>NATIONWIDE DELIVERY <b>✦</b></span><span>6 POSTERS PER SET <b>✦</b></span><span>CASH ON DELIVERY <b>✦</b></span>').repeat(4)}</div></div>`}
+  ${show.marquee===false?'':`<div class="marquee"><div class="track">${marquee.map(t=>`<span>${H.esc(t)} <b>✦</b></span>`).join('').repeat(Math.max(2, Math.ceil(16/marquee.length)))}</div></div>`}
 
-  ${show.new===false||!d.newArrivals.length?'':`<div class="wrap"><section class="block">
-    <div class="shead"><div><h2>NEW <span class="l">ARRIVALS</span></h2><p>Fresh drops, straight from the streets.</p></div><a class="more" href="/shop?filter=new">View all →</a></div>
-    <div class="rail">${d.newArrivals.map(H.card).join('')}</div>
-  </section></div>`}
+  ${show.new===false||!d.newArrivals.length?'':block('new','rail',d.newArrivals.map(H.card).join(''),'<a class="more" href="/shop?filter=new">View all →</a>')}
 
-  ${show.best===false||!d.bestsellers.length?'':`<div class="wrap"><section class="block">
-    <div class="shead"><div><h2>CULT <span class="l">FAVOURITES</span></h2><p>The sets everyone is hanging right now.</p></div><a class="more" href="/shop?filter=best">View all →</a></div>
-    <div class="grid cols-4">${d.bestsellers.slice(0,4).map(H.card).join('')}</div>
-  </section></div>`}
+  ${show.best===false||!d.bestsellers.length?'':block('best','grid cols-4',d.bestsellers.slice(0,4).map(H.card).join(''),'<a class="more" href="/shop?filter=best">View all →</a>')}
 
-  ${show.collections===false||!d.collections.length?'':`<div class="wrap"><section class="block">
-    <div class="shead"><div><h2>SHOP BY <span class="l">VIBE</span></h2><p>Find the aesthetic that feels like you.</p></div><a class="more" href="/shop">All sets →</a></div>
-    <div class="cgrid">${d.collections.map(c=>{
+  ${show.collections===false||!d.collections.length?'':block('collections','cgrid',d.collections.map(c=>{
       // Use real poster artwork from that category instead of a flat gradient.
       const pool=[...(d.newArrivals||[]),...(d.bestsellers||[]),...(d.featured||[])];
       const hit=pool.find(p=>(p.categoryIds||[]).includes(c.id));
       // prefer a single poster (pure artwork) over the cover composite
       const art=c.image || (hit&&hit.posters&&hit.posters[0]) || (hit&&hit.cover) || '';
-      return `<a class="ccard" href="/shop?cat=${c.id}">
+      return `<a class="ccard" href="/shop?cat=${encodeURIComponent(c.id)}">
         ${art?`<img src="${H.esc(H.img(art,600))}" alt="" loading="lazy" onerror="this.remove()">`:''}
         <div class="sh"></div><div class="tx"><h3>${H.esc(c.name)}</h3></div>
-      </a>`;}).join('')}</div>
-  </section></div>`}
+      </a>`;}).join(''),'<a class="more" href="/shop">All sets →</a>')}
 
-  ${show.featured===false||!d.featured.length?'':`<div class="wrap"><section class="block">
-    <div class="shead"><div><h2>FEATURED <span class="l">SETS</span></h2><p>Hand-picked by the HSS crew.</p></div><a class="more" href="/shop">Shop all →</a></div>
-    <div class="rail">${d.featured.map(H.card).join('')}</div>
-  </section></div>`}
+  ${show.featured===false||!d.featured.length?'':block('featured','rail',d.featured.map(H.card).join(''),'<a class="more" href="/shop">Shop all →</a>')}
 
   ${show.perks===false?'':`<div class="wrap"><section class="block">
     <div class="shead"><div><h2>${hl(d.perksTitle||'WHY HIGHSTREET SOCIETY')}</h2></div></div>
-    <div class="perks">
-      <div class="perk"><span class="n">01</span><h3>Six posters, one set</h3><p>Six matching A4 designs, curated to hang together.</p></div>
-      <div class="perk"><span class="n">02</span><h3>3mm premium board</h3><p>Thick, rigid and durable — no frames needed.</p></div>
-      <div class="perk"><span class="n">03</span><h3>Delivered all over BD</h3><p>Every district and thana. Cash on delivery available.</p></div>
-      <div class="perk"><span class="n">04</span><h3>Street-certified</h3><p>Born on the streets. Quality, comfort, culture.</p></div>
-    </div>
+    <div class="perks">${perks.map((p,i)=>`<div class="perk"><span class="n">${String(i+1).padStart(2,'0')}</span><h3>${H.esc(p.title)}</h3><p>${H.esc(p.text||'')}</p></div>`).join('')}</div>
   </section></div>`}
 
   ${show.insta===false?'':`<div class="wrap"><div class="insta">
-    <h2>FOLLOW THE <span class="l">SOCIETY</span></h2>
-    <p>New drops, room inspo & behind-the-scenes — first on Instagram.</p>
+    <h2>${hl(insta.title)}</h2>
+    <p>${H.esc(insta.text)}</p>
     <div class="cbtns" style="justify-content:center;display:flex;flex-wrap:wrap">
       ${H.social('instagram','Follow on Instagram','btn-lime')}
       ${H.social('whatsapp','Chat on WhatsApp','btn-ghost')}
-      <a class="btn btn-ghost" href="/shop">Shop the Feed</a>
+      <a class="btn btn-ghost" href="/shop">Shop all sets</a>
     </div>
   </div></div>`}
   `;

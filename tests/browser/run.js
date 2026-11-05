@@ -342,6 +342,7 @@ async function admin(browser, base, snap) {
     await flows.checkoutFlows(T);
     await flows.customerFlows(T);
     await flows.adminModules(T);
+    await flows.phase3(T);   // last: it changes prices/homepage on the throwaway server
     heading('Server log');
     const badLines = server.log().split('\n').filter(l =>
       /\[uncaught\]|\[unhandled-rejection\]|TypeError|ReferenceError|\[img\] falling back|\[supabase upload\]/.test(l));

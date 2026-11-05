@@ -16,10 +16,12 @@ async function render(){
   const box=document.getElementById('items'), sum=document.getElementById('sum');
   let subtotal=0, valid=[];
   box.innerHTML='';
-  for(const it of cart){
+  // fetch all lines in parallel (was one request after another)
+  const fetched = await Promise.all(cart.map(it => H.api('/api/products/'+encodeURIComponent(it.id)).then(d=>d.product, ()=>null)));
+  for(const [i, it] of cart.entries()){
     try{
-      const d = await H.api('/api/products/'+encodeURIComponent(it.id));
-      const p=d.product;
+      const p=fetched[i];
+      if(!p) continue;
       const sz=it.size||null;
       let avail=p.stock;
       if(sz && (p.sizes||[]).length){
@@ -45,11 +47,15 @@ async function render(){
   await H.settingsReady;
   const del=(H.settings&&H.settings.delivery)||null;
   if(!del){ sum.innerHTML='<p class="meta">Delivery charges could not be loaded — they will be shown at checkout.</p>'; return; }
+  const free = del.freeAbove>0 && subtotal>=del.freeAbove;
+  const left = del.freeAbove>0 ? del.freeAbove-subtotal : 0;
+  const pct = del.freeAbove>0 ? Math.min(100, Math.round(subtotal/del.freeAbove*100)) : 0;
   sum.innerHTML = `
+    ${del.freeAbove>0?`<div class="freeship"><p>${free?'🎉 You unlocked <b>free delivery</b>!':`Add <b>${H.money(left)}</b> more for <b>free delivery</b>`}</p><div class="bar"><i style="width:${pct}%"></i></div></div>`:''}
     <div class="sumrow"><span>Subtotal</span><span>${H.money(subtotal)}</span></div>
-    <div class="sumrow"><span>Delivery (Inside Dhaka)</span><span>${H.money(del.inside)}</span></div>
-    <div class="sumrow"><span>Delivery (Outside Dhaka)</span><span>${H.money(del.outside)}</span></div>
-    <div class="sumrow total"><span>Total*</span><span>${H.money(subtotal+del.inside)}+</span></div>
+    <div class="sumrow"><span>Delivery (Inside Dhaka)</span><span>${free?'Free':H.money(del.inside)}</span></div>
+    <div class="sumrow"><span>Delivery (Outside Dhaka)</span><span>${free?'Free':H.money(del.outside)}</span></div>
+    <div class="sumrow total"><span>Total*</span><span>${H.money(subtotal+(free?0:del.inside))}${free?'':'+'}</span></div>
     <p style="font-size:12.5px;color:var(--dim);margin:8px 0 16px">*Final total with delivery is calculated at checkout.</p>
     <a class="btn btn-lime btn-block" href="/checkout">Checkout →</a>
     <a class="btn btn-ghost btn-block" style="margin-top:10px" href="/shop">Continue shopping</a>`;
