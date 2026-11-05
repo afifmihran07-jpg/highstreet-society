@@ -89,6 +89,30 @@ module.exports = async function exhibition(T) {
       });
       check('touch: marker + info show in a caption below the posters, covering none of them', !!cap && cap.below && cap.covers === 0 && cap.marker === 3, JSON.stringify(cap));
       check('touch: the selected poster carries a small marker on its corner', !!cap && cap.cornerMark);
+      // WhatsApp button: scroll the open caption to where the button normally sits; it must glide clear
+      const waOn = await page.evaluate(async () => {
+        const t = document.querySelector('.g3d-tip.on'), wa = document.getElementById('wafab');
+        if (!t || !wa) return { missing: !t ? 'tip' : 'wafab' };
+        const w0 = wa.getBoundingClientRect(), tr = t.getBoundingClientRect();
+        scrollBy(0, Math.round(tr.bottom - (w0.bottom + 6)));          // caption bottom just below the button's normal spot
+        await new Promise(r => setTimeout(r, 700));
+        const a = t.getBoundingClientRect(), b = wa.getBoundingClientRect();
+        const tab = document.querySelector('.tabbar').getBoundingClientRect();
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return { overlap: Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0,
+          onScreen: b.top >= 0 && b.bottom <= innerHeight, clickable: !!(hit && hit.closest('#wafab')), clearOfTabbar: b.bottom <= tab.top + 1,
+          lifted: !!wa.style.translate };
+      });
+      check('touch: WhatsApp button glides clear of the open caption and stays tappable',
+        waOn.overlap === false && waOn.onScreen && waOn.clickable && waOn.clearOfTabbar && waOn.lifted, JSON.stringify(waOn));
+      // close the caption (tap empty stage corner) → button returns to its usual place
+      const st0 = await page.$eval('.g3d-stage', e => { const r = e.getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4, vis: r.top >= 0 }; });
+      if (!st0.vis) await page.$eval('.g3d-stage', e => e.scrollIntoView({ block: 'center' }));
+      const st1 = await page.$eval('.g3d-stage', e => { const r = e.getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4 }; });
+      await page.touchscreen.tap(st1.x, st1.y); await page.waitForTimeout(700);
+      const waOff = await page.evaluate(() => ({ open: !!document.querySelector('.g3d-tip.on'), translate: document.getElementById('wafab').style.translate }));
+      check('touch: closing the caption restores the WhatsApp button', !waOff.open && !waOff.translate, JSON.stringify(waOff));
+      await page.tap(`.g3d-card[data-p="${s.cards[0].p}"]`); await page.waitForTimeout(200);
       await page.tap('.g3d-tip .g3d-zoom');
       await page.waitForSelector('.g3d-lb.open', { timeout: 5000 }).catch(() => {});
       check('"View larger" on the poster opens the lightbox (touch)', !!(await page.$('.g3d-lb.open')));

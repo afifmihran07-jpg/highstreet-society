@@ -88,7 +88,33 @@ function build(section, sets){
     tip.style.transform = ''; tip.style.width = '';
   }
   applyMode();
-  const live = section.querySelector('.g3d-sr');
+
+  /* Keep the floating WhatsApp button (.wafab, from store.js) off the caption:
+     while the caption is open on a touch layout and the button would overlap it,
+     the button glides up to sit just above the caption; it glides back when the
+     caption closes or scrolls clear. Uses the CSS `translate` property so the
+     button's own transform effects (press scale, sticky-bar lift) still work. */
+  let waRaf = 0;
+  function waAvoid(){
+    waRaf = 0;
+    const wa = document.getElementById('wafab');
+    if(!wa) return;
+    const box = cap.classList.contains('has') && captionMode() && tip.classList.contains('on') ? tip.getBoundingClientRect() : null;
+    if(!box){ wa.style.translate = ''; return; }
+    // resting position from the CSS (not the on-screen rect, which may be mid-glide)
+    const r = wa.getBoundingClientRect();
+    const bottom = innerHeight - (parseFloat(getComputedStyle(wa).bottom) || 0), top = bottom - wa.offsetHeight, gap = 10;
+    const overlaps = bottom > box.top - gap && top < box.bottom + gap && r.right > box.left && r.left < box.right;
+    const lift = overlaps ? Math.min(0, box.top - gap - bottom) : 0;
+    // never push the button off the top of the screen; if there is no room above, leave it in place
+    wa.style.translate = lift && top + lift >= 8 ? `0 ${Math.round(lift)}px` : '';
+  }
+  let waSettle = 0;
+  // run on the next frame, and once more after (smooth/momentum) scrolling settles
+  const waQueue = () => { if(!waRaf) waRaf = requestAnimationFrame(waAvoid); clearTimeout(waSettle); waSettle = setTimeout(waAvoid, 180); };
+  addEventListener('scroll', waQueue, { passive: true });
+  addEventListener('resize', waQueue);
+  document.body.classList.add('g3d-wa');  const live = section.querySelector('.g3d-sr');
   const touch = () => !mqFine.matches;
   const cards = () => [...world.querySelectorAll('.g3d-card:not(.leave)')];
 
@@ -147,12 +173,12 @@ function build(section, sets){
       tip.classList.remove('on'); void tip.offsetWidth;
       tip.style.width = captionMode() ? '' : Math.round(Math.max(150, Math.min(196, card.getBoundingClientRect().width * 0.95))) + 'px';
     }
-    tip.classList.add('on'); cap.classList.add('has');
+    tip.classList.add('on'); cap.classList.add('has'); waQueue();
     cancelAnimationFrame(follow); placeTip();
   }
   function hideTip(now){
     clearTimeout(hideT);
-    const go = () => { tip.classList.remove('on'); cap.classList.remove('has'); cancelAnimationFrame(follow); tipCard = null; S.sel = -1; cards().forEach(c => c.classList.remove('sel')); };
+    const go = () => { tip.classList.remove('on'); cap.classList.remove('has'); waQueue(); cancelAnimationFrame(follow); tipCard = null; S.sel = -1; cards().forEach(c => c.classList.remove('sel')); };
     if(now) go(); else hideT = setTimeout(go, 140);
   }
   tip.addEventListener('mouseenter', () => clearTimeout(hideT));
