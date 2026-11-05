@@ -1,0 +1,653 @@
+{
+ "_note": "Default per-poster exhibition info, keyed by the exact catalogue image URL. Written from the actual artwork. Admin edits (Admin -> Poster Exhibition) override these without changing this file.",
+ "posters": {
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muijryys-50c9d85aa386.webp": {
+   "set": "og-marvel",
+   "n": 1,
+   "title": "Iron Man",
+   "text": "Built different. Genius mind, arc reactor heart, and zero plans to play small."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muijs8bd-7c9f8c2ea461.webp": {
+   "set": "og-marvel",
+   "n": 2,
+   "title": "The Avengers",
+   "text": "The whole roster in one frame. Earth's mightiest, assembled for your wall."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muijs10w-630edf43e2d7.webp": {
+   "set": "og-marvel",
+   "n": 3,
+   "title": "Captain America: The Winter Soldier",
+   "text": "Shield up, city below. Quiet, minimal, and somehow louder than any explosion."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muijs5yj-cd9634968715.webp": {
+   "set": "og-marvel",
+   "n": 4,
+   "title": "Thor: Ragnarok",
+   "text": "God of Thunder, helmet on, lightning loaded. Pure Ragnarok energy."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muijs2bf-faf85e861839.webp": {
+   "set": "og-marvel",
+   "n": 5,
+   "title": "Doctor Strange",
+   "text": "Neon multiverse, endless possibilities. A trip of colour that bends your whole wall."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muijs1ho-cec53e18e951.webp": {
+   "set": "og-marvel",
+   "n": 6,
+   "title": "The Incredible Hulk",
+   "text": "Calm Banner, raging green. Two sides, one frame, zero chill."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikf9he-9081ace48442.webp": {
+   "set": "marvel-exe",
+   "n": 1,
+   "title": "Moon Knight",
+   "text": "Three names, one cape, all moonlight. Gritty black-and-white Moon Knight mood."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikfae0-80d01857d951.webp": {
+   "set": "marvel-exe",
+   "n": 2,
+   "title": "Thunderbolts",
+   "text": "Antiheroes on a mission nobody asked for. Yellow-toned chaos with New Avengers energy."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikfbc6-b98d6c9b29ae.webp": {
+   "set": "marvel-exe",
+   "n": 3,
+   "title": "Deadpool",
+   "text": "Unfiltered chaos, maximum attitude. The fourth wall never stood a chance."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikf9uf-e4e84a8c0224.webp": {
+   "set": "marvel-exe",
+   "n": 4,
+   "title": "Wolverine",
+   "text": "Claws out, attitude on. The best there is at what he does, and he knows it."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikf8kj-f620ce018cb4.webp": {
+   "set": "marvel-exe",
+   "n": 5,
+   "title": "Fantastic Four",
+   "text": "Retro first-family vibes. Stretchy, fiery, rocky and invisible, all in one frame."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikfavn-5038c9fd3b9a.webp": {
+   "set": "marvel-exe",
+   "n": 6,
+   "title": "Ultron",
+   "text": "Cold metal, bold yellow type. Ultron's villain era, framed and ready to hang."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiki6ls-4f3f77155182.webp": {
+   "set": "anime-exe",
+   "n": 1,
+   "title": "Sanji",
+   "text": "Straw Hat cook, golden flames, black-leg style. Sanji walks in like he owns the kitchen."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiki84j-a4837cb95597.webp": {
+   "set": "anime-exe",
+   "n": 2,
+   "title": "Vagabond",
+   "text": "Ink, sword and silence. Vagabond's samurai calm hits harder than any fight scene."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiki9oa-69bca8729694.webp": {
+   "set": "anime-exe",
+   "n": 3,
+   "title": "Uchiha Madara",
+   "text": "Manga panels and a Sharingan stare. Madara never asked for permission."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiki8j5-0669b0180f45.webp": {
+   "set": "anime-exe",
+   "n": 4,
+   "title": "Jiraiya",
+   "text": "The Legendary Sannin in mustard and black. Wise, wild and impossible to forget."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiki94j-d7fbe0941f36.webp": {
+   "set": "anime-exe",
+   "n": 5,
+   "title": "Vinland Saga: Thorfinn",
+   "text": "Cherry blossoms, clenched fists, Thorfinn's whole arc in one striking red frame."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiki7f6-511cfb51afa5.webp": {
+   "set": "anime-exe",
+   "n": 6,
+   "title": "Uzumaki Naruto",
+   "text": "Never-give-up attitude in ink and orange. Main-character energy straight from the Hidden Leaf."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikkv92-44fa9338c135.webp": {
+   "set": "f1-exe",
+   "n": 1,
+   "title": "Ferrari: Charles Leclerc",
+   "text": "Scuderia red and Leclerc's #16. Built for the limit, styled for your wall."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikkuob-af158a7b76d7.webp": {
+   "set": "f1-exe",
+   "n": 2,
+   "title": "Red Bull: Max Verstappen",
+   "text": "Max and the Red Bull machine. Speed, precision, and no room for second place."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikkwqx-e70bd7af0ecd.webp": {
+   "set": "f1-exe",
+   "n": 3,
+   "title": "Haas: Nico Hülkenberg",
+   "text": "Hülkenberg's #27 in towering Haas red. Underdog grit in oversized type."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikkvqc-4eebc342726a.webp": {
+   "set": "f1-exe",
+   "n": 4,
+   "title": "McLaren: Lando Norris",
+   "text": "Papaya everything. Lando Norris and McLaren, loud in the best way."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikktmm-60f9c823c60f.webp": {
+   "set": "f1-exe",
+   "n": 5,
+   "title": "Mercedes-AMG: Kimi Antonelli",
+   "text": "Teal, silver and the new generation. Antonelli's Mercedes era, framed."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikkwcd-f3fa54547124.webp": {
+   "set": "f1-exe",
+   "n": 6,
+   "title": "Alpine: Pierre Gasly",
+   "text": "Alpine blue and Gasly's #10. Clean lines, French flair, full send."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiknjs6-b35dbd28aa9d.webp": {
+   "set": "football-exe",
+   "n": 1,
+   "title": "Erling Haaland",
+   "text": "Cold stare, ice-blond focus. Haaland looks like the goal was never in question."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiknlj6-319e054392ba.webp": {
+   "set": "football-exe",
+   "n": 2,
+   "title": "Lamine Yamal",
+   "text": "Barça colours and the #19. History Beckons, and he's answering in real time."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiknkn8-04f8fb30f385.webp": {
+   "set": "football-exe",
+   "n": 3,
+   "title": "Jude Bellingham",
+   "text": "Arms wide in England white. Bellingham's big-game energy in one bold frame."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiknl2q-11dbd850f256.webp": {
+   "set": "football-exe",
+   "n": 4,
+   "title": "Bruno Fernandes",
+   "text": "Number 8, Red Devils fire. Bruno brings the creativity and the drama."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiknm3y-2bed16a919d9.webp": {
+   "set": "football-exe",
+   "n": 5,
+   "title": "Cole Palmer",
+   "text": "Ice cold, literally. Palmer's calm-under-pressure aura in Chelsea blue."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muiknmne-408b2e67d9f2.webp": {
+   "set": "football-exe",
+   "n": 6,
+   "title": "Marcus Rashford",
+   "text": "Classic number 10 energy. Rashford in vintage red, built for the big moments."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikq8le-d47a4787ff51.webp": {
+   "set": "legend-exe",
+   "n": 1,
+   "title": "Paolo Maldini",
+   "text": "Rossoneri stripes, captain's calm. \"El Capitano\" is the definition of class at the back."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikq882-6f3153f92dc7.webp": {
+   "set": "legend-exe",
+   "n": 2,
+   "title": "Pelé",
+   "text": "The original icon. Pelé's joy in canary yellow never goes out of style."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikq98w-559d32b49b72.webp": {
+   "set": "legend-exe",
+   "n": 3,
+   "title": "David Beckham",
+   "text": "Captain's armband, number seven, peak Beckham. England legend energy."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikqa37-2532f5da9fdf.webp": {
+   "set": "legend-exe",
+   "n": 4,
+   "title": "Paul Scholes",
+   "text": "Ginger maestro in Old Trafford red. Scholes made passing look like an art form."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikq6zm-d2a9b5b5921d.webp": {
+   "set": "legend-exe",
+   "n": 5,
+   "title": "Diego Maradona",
+   "text": "Sky-blue stripes, left-foot magic. Maradona's legend in retro style."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikqap2-a5bfe0a144fd.webp": {
+   "set": "legend-exe",
+   "n": 6,
+   "title": "Ronaldinho",
+   "text": "Smile, samba, number 10. Ronaldinho made football look like pure fun."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikt2iq-1e3bf74ef597.webp": {
+   "set": "roll-exe",
+   "n": 1,
+   "title": "The Smiths: The Queen Is Dead",
+   "text": "Salford Lads Club and pure indie melancholy. The Queen Is Dead, forever iconic."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikt4fh-1e63f01638a2.webp": {
+   "set": "roll-exe",
+   "n": 2,
+   "title": "Guns N' Roses",
+   "text": "Roses, revolvers and raw rock. Appetite for Destruction gig-poster energy."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikt6lw-5259a5909aa1.webp": {
+   "set": "roll-exe",
+   "n": 3,
+   "title": "Pink Floyd: The Dark Side of the Moon",
+   "text": "One prism, one rainbow, infinite replays. The Dark Side of the Moon on your wall."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikt4xl-cd3dfa6f7211.webp": {
+   "set": "roll-exe",
+   "n": 4,
+   "title": "Radiohead",
+   "text": "Neon grunge colours and art-rock moods. Radiohead for people who feel everything."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikt3xx-4cfe5caa414b.webp": {
+   "set": "roll-exe",
+   "n": 5,
+   "title": "Nirvana",
+   "text": "Yellow haze, grunge legends. Nirvana's whole attitude, tour-poster style."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikt645-b7f659c67b37.webp": {
+   "set": "roll-exe",
+   "n": 6,
+   "title": "Oasis",
+   "text": "Britpop swagger in baby blue. Oasis mid-stare, absolutely not apologising."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikwegv-96114e3f5b02.webp": {
+   "set": "roll-2-0-exe",
+   "n": 1,
+   "title": "Bon Jovi: Super Rock '84",
+   "text": "Big hair, bigger riffs. Bon Jovi live at Super Rock '84 in Japan."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikwf65-d74f6777f3bc.webp": {
+   "set": "roll-2-0-exe",
+   "n": 2,
+   "title": "Queen",
+   "text": "Dreamy, hazy, legendary. Every band wants more, but every band's not Queen."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikwd7v-09c6c3a4f9c7.webp": {
+   "set": "roll-2-0-exe",
+   "n": 3,
+   "title": "Fleetwood Mac",
+   "text": "Seventies glow, five legends, one timeless sound in warm retro reds."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikwg2z-b1f5b746a5e4.webp": {
+   "set": "roll-2-0-exe",
+   "n": 4,
+   "title": "David Bowie",
+   "text": "Cosmic colours and starry eyes. Bowie, glowing like he came from another galaxy."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikwdtw-22079fb4efef.webp": {
+   "set": "roll-2-0-exe",
+   "n": 5,
+   "title": "The Police",
+   "text": "Old-school concert-poster cool. The Police, blue-toned and effortlessly iconic."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikwbtd-44a693b9d902.webp": {
+   "set": "roll-2-0-exe",
+   "n": 6,
+   "title": "Goo Goo Dolls",
+   "text": "Late-night guitars and nostalgic feels on a vintage greatest-hits poster."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikzj3e-4c0830b3cb71.webp": {
+   "set": "tv-exe",
+   "n": 1,
+   "title": "Dark",
+   "text": "Clocks, cycles and family secrets. Dark's time-loop puzzle in one hypnotic design."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikzkr4-c95ac84ee0ca.webp": {
+   "set": "tv-exe",
+   "n": 2,
+   "title": "Stranger Things",
+   "text": "Red glow, the whole crew, Upside Down vibes. All friends welcome."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikznhj-2ab86d09cbad.webp": {
+   "set": "tv-exe",
+   "n": 3,
+   "title": "Breaking Bad",
+   "text": "Gas masks, yellow suits, hot-pink chaos. Breaking Bad like you've never seen it."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikzofc-931627e9527d.webp": {
+   "set": "tv-exe",
+   "n": 4,
+   "title": "Narcos",
+   "text": "Green-toned and dangerously calm. Narcos-level slow-burn tension in one portrait."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikzqes-b72c147734cc.webp": {
+   "set": "tv-exe",
+   "n": 5,
+   "title": "The Boys",
+   "text": "Crowbar, attitude, Japanese-print style. The Boys, unhinged in the best way."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muikzrwb-bfb5996354a3.webp": {
+   "set": "tv-exe",
+   "n": 6,
+   "title": "Better Call Saul",
+   "text": "Retro teal panels and a smirk that says 'trust me'. Better Call Saul."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil2uxu-f1af7902837c.webp": {
+   "set": "tv-legend-exe",
+   "n": 1,
+   "title": "Suits",
+   "text": "Sharp suits, sharper moves. Mike, Harvey and Louis bringing closing-argument energy."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil2wyx-bbbcf200c0a8.webp": {
+   "set": "tv-legend-exe",
+   "n": 2,
+   "title": "The Office",
+   "text": "Paper stacks and awkward stares. For anyone who's ever survived a Monday."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil2xpz-0445fabc3400.webp": {
+   "set": "tv-legend-exe",
+   "n": 3,
+   "title": "Game of Thrones",
+   "text": "A lone figure in fur against a frozen sky. Winter-is-coming energy, minimal style."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil2yvn-cd69855bcf72.webp": {
+   "set": "tv-legend-exe",
+   "n": 4,
+   "title": "Dexter",
+   "text": "Comic-book noir in blood red. Dexter Morgan's dark side, beautifully framed."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil2znq-05d1e74ad623.webp": {
+   "set": "tv-legend-exe",
+   "n": 5,
+   "title": "House M.D.",
+   "text": "Green-tinted genius sipping through a straw. House, diagnosing your empty wall."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil315t-99beb2f7ea6b.webp": {
+   "set": "tv-legend-exe",
+   "n": 6,
+   "title": "The Walking Dead",
+   "text": "A lonely ridge, a dark forest, survivors on the edge. Quiet dread, framed."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil5zji-952ad990794e.webp": {
+   "set": "weekend-exe",
+   "n": 1,
+   "title": "The Weeknd: Timeless",
+   "text": "Red, cream and dark shades. The Weeknd's Timeless era in oversized type."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil60rl-6b4520ef5dc9.webp": {
+   "set": "weekend-exe",
+   "n": 2,
+   "title": "The Weeknd: Starboy",
+   "text": "Starboy on repeat, literally. Crumpled-paper texture meets bright pop colour."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil5pfr-d1af0b930d98.webp": {
+   "set": "weekend-exe",
+   "n": 3,
+   "title": "The Weeknd: Dancing in the Flames",
+   "text": "Gold grid, black leather, after-dark mood. Dancing in the Flames, framed."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil5z2z-520cd9e4607a.webp": {
+   "set": "weekend-exe",
+   "n": 4,
+   "title": "The Weeknd: Blinding Lights",
+   "text": "Red suit, tinted shades, eighties glow. Blinding Lights in poster form."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil60c3-9946b3458e1b.webp": {
+   "set": "weekend-exe",
+   "n": 5,
+   "title": "The Weeknd: After Hours",
+   "text": "Pink neon and late-night shadows. After Hours for the 3 a.m. thinkers."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil5nhl-1ab86ebae247.webp": {
+   "set": "weekend-exe",
+   "n": 6,
+   "title": "The Weeknd: Hurry Up Tomorrow",
+   "text": "Album-cover minimalism with the full tracklist. Clean, moody and complete."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil8ons-a02670bb2df0.webp": {
+   "set": "phycheledic-exe",
+   "n": 1,
+   "title": "Travis Scott",
+   "text": "Red haze, braids and La Flame energy. Travis Scott in full rage mode."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil8qpw-47a786fab63b.webp": {
+   "set": "phycheledic-exe",
+   "n": 2,
+   "title": "Kanye West: Graduation",
+   "text": "Graduation-era Kanye in a zine-style collage, tracklist included."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil8sg4-2f9e1a6e93db.webp": {
+   "set": "phycheledic-exe",
+   "n": 3,
+   "title": "Frank Ocean: Blond",
+   "text": "Red, raw and introspective. A striking tribute to Frank Ocean's Blond."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil8ryr-125e63225f55.webp": {
+   "set": "phycheledic-exe",
+   "n": 4,
+   "title": "Playboi Carti",
+   "text": "Red smoke and rockstar mystique. Playboi Carti, framed in full colour."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil8sz7-ae706e82e625.webp": {
+   "set": "phycheledic-exe",
+   "n": 5,
+   "title": "Kendrick Lamar",
+   "text": "Bold serif headline over a red, white and blue stage shot. Kendrick, no skips."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muil8tp5-6733c43c0a3d.webp": {
+   "set": "phycheledic-exe",
+   "n": 6,
+   "title": "Juice WRLD",
+   "text": "Soft red light and 999 glitch details. Juice WRLD in one quiet, moody frame."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilb13h-1d4654266907.webp": {
+   "set": "pink-exe",
+   "n": 1,
+   "title": "Lily",
+   "text": "Soft pink lilies in an editorial layout. Pretty, calm and a little bit poetic."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilb21d-9d2444836bc5.webp": {
+   "set": "pink-exe",
+   "n": 2,
+   "title": "Vogue Porsche",
+   "text": "Pink Porsche, martini on top, Vogue type. Luxury main-character energy, zero apologies."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilb2fx-0c48f21fd700.webp": {
+   "set": "pink-exe",
+   "n": 3,
+   "title": "10 Things I Hate About You",
+   "text": "Peak nineties rom-com, washed in pink. Forever iconic, forever quotable."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilb2uo-f1a968c96848.webp": {
+   "set": "pink-exe",
+   "n": 4,
+   "title": "SZA",
+   "text": "Magenta tones and an effortless pose. SZA's soft-but-unbothered mood on your wall."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilb38s-849bc9781f2e.webp": {
+   "set": "pink-exe",
+   "n": 5,
+   "title": "New York",
+   "text": "Brooklyn Bridge in sketchy ink under big pink type. City-girl dreams, framed."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilb4to-c0b84f951735.webp": {
+   "set": "pink-exe",
+   "n": 6,
+   "title": "3 A.M. Call",
+   "text": "Retro pink phone and a lyric everyone knows. For the 'why'd you only call me' moments."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilde7q-5b25ad86cc4a.webp": {
+   "set": "p1nk-exe",
+   "n": 1,
+   "title": "Too Glam to Beg",
+   "text": "Leopard-print rotary phone. Too glam to beg, standards high, energy higher."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muildib9-1f71d5ec1d90.webp": {
+   "set": "p1nk-exe",
+   "n": 2,
+   "title": "Pink Hearts",
+   "text": "Layered pink hearts and nothing but soft vibes. Minimal, cute, impossible to ignore."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muildilp-14ca18c4edaa.webp": {
+   "set": "p1nk-exe",
+   "n": 3,
+   "title": "Love Records",
+   "text": "Vinyl, checkerboard and grape juice. A love-song collage that hums on your wall."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muildj0u-3148a632a31e.webp": {
+   "set": "p1nk-exe",
+   "n": 4,
+   "title": "I'm Just a Girl",
+   "text": "I'm just a girl. One pink bow on sage green, perfectly soft."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muildjdx-2a653d78edbe.webp": {
+   "set": "p1nk-exe",
+   "n": 5,
+   "title": "Cherry Bow",
+   "text": "Glossy cherries tied with a pink bow. Sweet, simple and very coquette."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muildjth-1dcea3c53aa2.webp": {
+   "set": "p1nk-exe",
+   "n": 6,
+   "title": "Cherry Vibes",
+   "text": "A crushed can with cherry vibes. Pop-art pink with a playful twist."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilfwm3-abbf5bee4cd5.webp": {
+   "set": "her-exe",
+   "n": 1,
+   "title": "Vogue Leopard",
+   "text": "A snarling leopard on a blush Vogue cover. Soft colours, fierce attitude."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilfx2c-9b264975d45e.webp": {
+   "set": "her-exe",
+   "n": 2,
+   "title": "Billie Eilish",
+   "text": "Pink-washed Billie in jersey and cap. Effortlessly cool, never trying too hard."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilfxl5-30fa58cf5f0e.webp": {
+   "set": "her-exe",
+   "n": 3,
+   "title": "Call Me If You Get Lost",
+   "text": "Pink star, heavy black type. Tyler, the Creator's Call Me If You Get Lost era."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilfy0l-c62269b95f42.webp": {
+   "set": "her-exe",
+   "n": 4,
+   "title": "Life's Better on Saturn",
+   "text": "Pink rings, starry sky. Proof that life really is better on Saturn."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilfyfc-55eb53a7a8e2.webp": {
+   "set": "her-exe",
+   "n": 5,
+   "title": "Sabrina Carpenter",
+   "text": "Pink halftone Sabrina, short n' sweet. Espresso energy in poster form."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilfz14-7d8466371ef4.webp": {
+   "set": "her-exe",
+   "n": 6,
+   "title": "Silver Springs Lyric",
+   "text": "Pink script lyric from 1977's Silver Springs. Time casts a spell, but this one sticks."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilhv1r-c797e645014c.webp": {
+   "set": "goat-exe",
+   "n": 1,
+   "title": "Lionel Messi: Starboy",
+   "text": "Young Messi in Argentina blue and black. Starboy energy, where the story starts."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muili2dj-f4424db4b203.webp": {
+   "set": "goat-exe",
+   "n": 2,
+   "title": "Lionel Messi: World Cup",
+   "text": "Trophy kiss and every era in one collage. Messi's whole journey, one frame."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muili3gr-4a73f026a58d.webp": {
+   "set": "goat-exe",
+   "n": 3,
+   "title": "Lionel Messi: Monochrome",
+   "text": "Black-and-white Argentina stripes, arms raised. Pure emotion in monochrome."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muili42k-33e2a8256e74.webp": {
+   "set": "goat-exe",
+   "n": 4,
+   "title": "Lionel Messi: Juggling",
+   "text": "Ball on his head, grin on his face. Messi's playful side in Argentina blue."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muili5aw-47e2c794499c.webp": {
+   "set": "goat-exe",
+   "n": 5,
+   "title": "Lionel Messi: Barcelona",
+   "text": "Blaugrana stripes and the famous 10. Barcelona-era Messi in full celebration."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muili69p-706ec420b7d7.webp": {
+   "set": "goat-exe",
+   "n": 6,
+   "title": "Lionel Messi: I've Lost Count",
+   "text": "Deep blue, jersey held high. For when you've lost count of the magic."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilkmnw-b7ee8bcaa5f6.webp": {
+   "set": "cr7-exe",
+   "n": 1,
+   "title": "Cristiano Ronaldo: The Conqueror",
+   "text": "Red and black, celebration mode. Cristiano as The Conqueror, pure intensity."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilknh9-f7f30a947499.webp": {
+   "set": "cr7-exe",
+   "n": 2,
+   "title": "Cristiano Ronaldo: The Iconic",
+   "text": "Madrid white, an overhead kick, trophies stacked. The iconic collection."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilknwi-dedb29b9882f.webp": {
+   "set": "cr7-exe",
+   "n": 3,
+   "title": "Cristiano Ronaldo: Juventus",
+   "text": "Black-and-white stripes in motion. Juventus-era Ronaldo, multiplied across one frame."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilkosl-05625359f153.webp": {
+   "set": "cr7-exe",
+   "n": 4,
+   "title": "CR7: Portugal",
+   "text": "Gritty print texture, a trophy kiss and a big red CR7. Portugal pride."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilkpd3-eb1cf76a47a1.webp": {
+   "set": "cr7-exe",
+   "n": 5,
+   "title": "Cristiano Ronaldo: Manchester United",
+   "text": "Young Ronaldo in Manchester United red. The hunger before the legend."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilkpt2-87042fb05c1a.webp": {
+   "set": "cr7-exe",
+   "n": 6,
+   "title": "Cristiano Ronaldo: Al-Nassr",
+   "text": "Blue and gold, armband on. Ronaldo in Al-Nassr colours, still main character."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilmrds-0eda315ec228.webp": {
+   "set": "prince-exe",
+   "n": 1,
+   "title": "Neymar Jr: Every Club",
+   "text": "Every shirt, every celebration. Neymar Jr's journey in one loud collage."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilmsn0-78346aa9d64a.webp": {
+   "set": "prince-exe",
+   "n": 2,
+   "title": "Neymar: King Without Crown",
+   "text": "Graffiti gold over Brazil yellow. King without a crown, all flair."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilmt9r-4b0b9facd9a6.webp": {
+   "set": "prince-exe",
+   "n": 3,
+   "title": "Neymar: 2015",
+   "text": "Barça stripes and a Champions League trophy. Peak 2015 Neymar."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilmw5l-fa0778de8556.webp": {
+   "set": "prince-exe",
+   "n": 4,
+   "title": "Neymar: PSG",
+   "text": "Comic-strip ink, PSG kit and Batman panels. Neymar with superhero swagger."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilmwmh-eb0e38334989.webp": {
+   "set": "prince-exe",
+   "n": 5,
+   "title": "Neymar: Brazil",
+   "text": "Clean Swiss-style layout, Brazil yellow, ball at his feet. Joga bonito."
+  },
+  "https://hzgiktcggfqyghgwztdw.supabase.co/storage/v1/object/public/product-images/products/optimized/muilmxuf-4a04198176dc.webp": {
+   "set": "prince-exe",
+   "n": 6,
+   "title": "Neymar Jr: Santos",
+   "text": "Black-and-white close-ups in Santos stripes. Neymar, focused and in the zone."
+  }
+ }
+}

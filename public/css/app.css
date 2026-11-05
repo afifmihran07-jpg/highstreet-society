@@ -976,11 +976,11 @@ footer.site{margin-top:48px}
   body.has-stickybuy .wafab{transform:translateY(-76px)}
 }
 
-/* ---------- 3D floating poster gallery (homepage, below the hero) ---------- */
+/* ---------- 3D poster exhibition (homepage, below the hero) ---------- */
 .g3d{position:relative;padding:34px 0 0}
 .g3d .shead{margin-bottom:6px}
 .g3d-stage{position:relative;height:560px;perspective:1300px;perspective-origin:50% 42%;overflow:hidden;
-  border-radius:var(--r);isolation:isolate;
+  border-radius:var(--r);isolation:isolate;touch-action:pan-y;
   background:
     radial-gradient(60% 55% at 50% 42%,rgba(139,92,246,.20),transparent 70%),
     radial-gradient(40% 22% at 50% 100%,rgba(215,255,62,.13),transparent 75%),
@@ -988,50 +988,140 @@ footer.site{margin-top:48px}
 .g3d-stage::before{content:"";position:absolute;left:8%;right:8%;bottom:9%;height:1px;z-index:0;pointer-events:none;
   background:linear-gradient(90deg,transparent,rgba(215,255,62,.35),transparent);box-shadow:0 0 22px rgba(215,255,62,.25)}
 .g3d-stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
-  background:radial-gradient(120% 90% at 50% 45%,transparent 60%,rgba(11,11,15,.85) 100%)}
-.g3d-world{position:absolute;inset:0;transform-style:preserve-3d;z-index:1;
+  background:radial-gradient(120% 90% at 50% 45%,transparent 62%,rgba(11,11,15,.8) 100%)}
+/* the world plane sits at z=0 in front of deeper posters: it must not swallow their hover/clicks */
+.g3d-world{position:absolute;inset:0;transform-style:preserve-3d;z-index:1;pointer-events:none;
   transform:rotateX(var(--px,0deg)) rotateY(var(--py,0deg));transition:transform .9s cubic-bezier(.2,.7,.2,1)}
 .g3d-card{position:absolute;left:var(--x);top:var(--y);width:calc(var(--w) * var(--ws,1));display:block;transform-style:preserve-3d;
   transform:translate(-50%,-50%) translateZ(var(--z)) rotateY(var(--ry)) rotateZ(var(--rz));
-  opacity:0;transition:opacity .9s ease,transform 1.2s cubic-bezier(.16,.8,.24,1);
-  transition-delay:calc(var(--i) * 70ms);outline:none;-webkit-tap-highlight-color:transparent}
-.g3d:not(.in) .g3d-card{transform:translate(-50%,-40%) translateZ(calc(var(--z) - 320px)) rotateY(var(--ry)) rotateZ(var(--rz))}
-.g3d.in .g3d-card{opacity:1}
+  opacity:1;transition:opacity .7s ease,transform 1s cubic-bezier(.16,.8,.24,1);
+  transition-delay:calc(var(--i) * 60ms);outline:none;-webkit-tap-highlight-color:transparent;pointer-events:auto}
+/* entering (glide in from depth) and leaving (sink back and fade) */
+.g3d:not(.in) .g3d-card,.g3d-card.pre{opacity:0;
+  transform:translate(-50%,-40%) translateZ(calc(var(--z) - 320px)) rotateY(var(--ry)) rotateZ(var(--rz))}
+.g3d-card.leave{opacity:0;pointer-events:none;transition-delay:0s;transition-duration:.55s;
+  transform:translate(calc(-50% - var(--dir,1) * 18%),-50%) translateZ(calc(var(--z) - 420px)) rotateY(var(--ry)) rotateZ(var(--rz))}
 .g3d-float{display:block;transform-style:preserve-3d;animation:g3dfloat var(--dur) ease-in-out var(--delay) infinite alternate}
 .g3d.paused .g3d-float{animation-play-state:paused}
 @keyframes g3dfloat{
-  from{transform:translate3d(0,-9px,0) rotateX(2deg) rotateY(-3deg)}
-  to  {transform:translate3d(0,11px,0) rotateX(-2deg) rotateY(3deg)}}
+  from{transform:translate3d(0,calc(var(--amp,10px) * -.9),0) rotateX(2deg) rotateY(-3deg)}
+  to  {transform:translate3d(0,var(--amp,10px),0) rotateX(-2deg) rotateY(3deg)}}
 .g3d-inner{position:relative;display:block;aspect-ratio:210/297;border-radius:5px;overflow:hidden;background:var(--card2);
   filter:brightness(var(--lit,1));
   box-shadow:0 34px 60px -22px rgba(0,0,0,.85),0 12px 24px -12px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.07);
   transition:transform .5s cubic-bezier(.2,.8,.2,1),box-shadow .5s ease,filter .5s ease}
-.g3d-inner img{display:block;width:100%;height:100%;object-fit:cover}
+.g3d-inner img{display:block;width:100%;height:100%;object-fit:contain;background:#0d0d12}
 .g3d-sheen{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s ease;
   background:linear-gradient(115deg,transparent 28%,rgba(255,255,255,.16) 46%,transparent 62%)}
-.g3d-label{position:absolute;left:50%;top:100%;transform:translate(-50%,46px) translateZ(100px);white-space:nowrap;pointer-events:none;
-  font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);
-  background:rgba(11,11,15,.85);border:1px solid rgba(215,255,62,.3);padding:5px 11px;border-radius:99px;
-  opacity:0;transition:opacity .35s ease}
 @media (hover:hover) and (pointer:fine){
   .g3d-card:hover .g3d-inner{transform:translateZ(90px) scale(1.12);filter:brightness(1.05);
     box-shadow:0 46px 80px -22px rgba(0,0,0,.92),0 0 34px rgba(215,255,62,.28),0 0 0 1px rgba(215,255,62,.55)}
-  .g3d-card:hover .g3d-sheen,.g3d-card:hover .g3d-label{opacity:1}
+  .g3d-card:hover .g3d-sheen{opacity:1}
   .g3d-stage:hover .g3d-card:not(:hover) .g3d-inner{filter:brightness(calc(var(--lit,1) * .72))}
 }
 .g3d-card:focus-visible .g3d-inner{transform:translateZ(90px) scale(1.12);filter:brightness(1.05);
   box-shadow:0 46px 80px -22px rgba(0,0,0,.92),0 0 0 3px var(--lime)}
-.g3d-card:focus-visible .g3d-label{opacity:1}
-.g3d-card:active .g3d-inner{transform:translateZ(40px) scale(1.05)}
-@media (min-width:701px) and (max-width:1024px){.g3d-stage{height:500px;--ws:.74}}
+/* touch: the tapped poster is "selected" */
+.g3d-card.sel .g3d-inner{transform:translateZ(40px) scale(1.06);filter:brightness(1.05);
+  box-shadow:0 30px 50px -20px rgba(0,0,0,.9),0 0 0 2px var(--lime),0 0 22px rgba(215,255,62,.35)}
+
+/* poster information (below the stage, never over the artwork) */
+.g3d-info{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:92px;margin-top:14px;
+  padding:14px 18px;border:1px solid var(--line);border-left:3px solid var(--lime);border-radius:var(--r-sm);background:var(--bg2)}
+.g3d-info-tx{min-width:0}
+.g3d-pn{display:block;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--lime);margin-bottom:3px}
+.g3d-info-tx b{display:block;font-family:var(--font-d);font-size:17px;letter-spacing:.01em;line-height:1.2}
+.g3d-info-tx p{color:var(--mut);font-size:14.5px;line-height:1.45;margin:4px 0 0}
+.g3d-info-act{display:flex;gap:10px;flex-shrink:0}
+.g3d-zoom,.g3d-go{font:inherit;font-size:13px;font-weight:800;padding:10px 16px;border-radius:99px;white-space:nowrap;cursor:pointer}
+.g3d-zoom{background:transparent;color:var(--ink);border:1px solid var(--line2)}
+.g3d-zoom:hover{border-color:var(--ink)}
+.g3d-go{background:var(--lime);color:#0B0B0F;border:1px solid var(--lime)}
+
+/* navigation: counter + title, arrows + one dot per set, CTAs */
+.g3d-nav{display:flex;align-items:center;justify-content:space-between;gap:14px 22px;flex-wrap:wrap;margin-top:14px}
+.g3d-meta{display:flex;align-items:baseline;gap:12px;min-width:0}
+.g3d-count{font-family:var(--font-d);font-size:13px;color:var(--lime);letter-spacing:.08em}
+.g3d-title{font-family:var(--font-d);font-size:clamp(16px,2vw,20px);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g3d-ctrl{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.g3d-arrow{flex-shrink:0;width:40px;height:40px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--ink);
+  font-size:22px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.g3d-arrow:hover,.g3d-arrow:focus-visible{border-color:var(--lime);color:var(--lime)}
+.g3d-dots{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;min-width:0;scroll-behavior:smooth}
+.g3d-dots::-webkit-scrollbar{display:none}
+.g3d-dot{flex-shrink:0;width:22px;height:32px;border:0;background:transparent;cursor:pointer;display:grid;place-items:center;padding:0}
+.g3d-dot i{display:block;width:8px;height:8px;border-radius:99px;background:rgba(255,255,255,.25);transition:width .3s ease,background .3s ease}
+.g3d-dot:hover i{background:rgba(255,255,255,.55)}
+.g3d-dot.on i{width:22px;background:var(--lime);box-shadow:0 0 10px rgba(215,255,62,.6)}
+.g3d-dot.on{width:30px}
+.g3d-dot:focus-visible{outline:2px solid var(--lime);outline-offset:-4px;border-radius:8px}
+.g3d-links{display:flex;gap:16px;align-items:center}
+.g3d-cta{font-size:12.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0B0B0F;background:var(--lime);padding:10px 16px;border-radius:99px;white-space:nowrap}
+.g3d-all{font-size:12.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid rgba(255,255,255,.22);white-space:nowrap}
+.g3d-all:hover{color:var(--ink)}
+
+/* lightbox */
+.g3d-lb{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;gap:12px;padding:20px;
+  background:rgba(8,8,12,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.g3d-lb.open{display:flex}
+body.g3d-lb-open{overflow:hidden}
+.g3d-lb figure{margin:0;display:flex;gap:24px;align-items:center;max-width:min(1000px,100%);max-height:100%}
+.g3d-lb img{display:block;max-height:calc(100vh - 80px);max-width:min(560px,58vw);width:auto;height:auto;object-fit:contain;border-radius:6px;
+  box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 0 1px rgba(215,255,62,.25)}
+.g3d-lb figcaption{max-width:320px}
+.g3d-lb figcaption b{display:block;font-family:var(--font-d);font-size:22px;line-height:1.15;margin:4px 0 8px}
+.g3d-lb figcaption p{color:var(--mut);line-height:1.5;margin:0 0 18px}
+.g3d-lb-x{position:absolute;top:14px;right:14px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line2);
+  background:rgba(20,20,28,.9);color:var(--ink);font-size:18px;cursor:pointer}
+.g3d-lb-nav{flex-shrink:0;width:44px;height:44px;border-radius:50%;border:1px solid var(--line2);background:rgba(20,20,28,.9);
+  color:var(--ink);font-size:24px;cursor:pointer}
+.g3d-lb-x:hover,.g3d-lb-nav:hover,.g3d-lb-x:focus-visible,.g3d-lb-nav:focus-visible{border-color:var(--lime);color:var(--lime)}
+
+@media (min-width:701px) and (max-width:1024px){.g3d-stage{height:480px;--ws:.66}}
 @media (max-width:700px){
   .g3d{padding-top:26px}
-  .g3d-stage{height:440px;perspective:900px;border-radius:var(--r-sm)}
-  .g3d-label{display:none}
+  /* 2 × 3 grid of all six posters: height follows width so nothing overlaps */
+  .g3d-stage{height:auto;aspect-ratio:100/100;perspective:900px;perspective-origin:50% 50%;border-radius:var(--r-sm);--amp:4px}
+  .g3d-stage::before{bottom:3%}
+  .g3d-info{flex-direction:column;align-items:stretch;gap:12px;min-height:150px;padding:12px 14px}
+  .g3d-info-act{justify-content:stretch}
+  .g3d-info-act>*{flex:1;text-align:center;padding:12px 10px}
+  .g3d-nav{flex-direction:column;align-items:stretch;gap:10px}
+  .g3d-meta{justify-content:space-between}
+  .g3d-ctrl{justify-content:center}
+  .g3d-links{justify-content:space-between}
+  .g3d-cta{flex:1;text-align:center;padding:12px 14px}
+  .g3d-lb{flex-direction:column;padding:60px 14px 14px;overflow:auto}
+  .g3d-lb figure{flex-direction:column;gap:14px}
+  .g3d-lb img{max-width:100%;max-height:62vh}
+  .g3d-lb figcaption{max-width:none;text-align:center}
+  .g3d-lb-nav{position:absolute;top:50%}
+  .g3d-lb-nav[data-d="-1"]{left:6px}.g3d-lb-nav[data-d="1"]{right:6px}
 }
 @media (prefers-reduced-motion:reduce){
   .g3d-float{animation:none}
-  .g3d-card,.g3d-world,.g3d-inner,.g3d-sheen{transition:none}
-  .g3d:not(.in) .g3d-card{transform:translate(-50%,-50%) translateZ(var(--z)) rotateY(var(--ry)) rotateZ(var(--rz))}
-  .g3d-card{opacity:1}
+  .g3d-card,.g3d-world,.g3d-inner,.g3d-sheen,.g3d-dot i{transition:none}
+  .g3d:not(.in) .g3d-card,.g3d-card.pre{opacity:1;transform:translate(-50%,-50%) translateZ(var(--z)) rotateY(var(--ry)) rotateZ(var(--rz))}
+  .g3d-card.leave{display:none}
 }
+
+/* Admin → Poster Exhibition */
+.exlist{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:8px}
+.exrow{display:grid;grid-template-columns:22px 34px 56px 1fr auto auto;align-items:center;gap:12px;padding:10px 14px;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm)}
+.exrow.off{opacity:.62}
+.exrow.dragging{opacity:.4}
+.exrow.dropbefore{box-shadow:0 -3px 0 var(--lime)}
+.exrow.dropafter{box-shadow:0 3px 0 var(--lime)}
+.exgrip{cursor:grab;color:var(--dim);font-weight:800;letter-spacing:-2px;user-select:none}
+.expos{font-family:var(--font-d);color:var(--lime);font-size:15px}
+.exname{min-width:0}
+.exname b{display:block}
+.exname>span{display:block;font-size:12.5px;color:var(--mut);margin-top:2px}
+.exdet{grid-column:1/-1;border-top:1px solid var(--line);margin-top:8px;padding-top:14px;cursor:auto}
+.exposters{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin:12px 0}
+.expost{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px;display:flex;flex-direction:column;gap:8px}
+.expost img{width:100%;aspect-ratio:210/297;object-fit:contain;background:#0d0d12;border-radius:6px;display:block}
+.expost textarea{resize:vertical}
+.exwc{display:block;font-size:11.5px;margin-top:3px}
+@media (max-width:860px){.exrow{grid-template-columns:22px 30px 44px 1fr;}.exrow>.apill,.exrow>.arow{grid-column:3/-1}}

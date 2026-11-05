@@ -1334,6 +1334,120 @@ function cleanPromo(x){
   if(pr.startsAt && pr.endsAt && pr.endsAt <= pr.startsAt) return { error: `"${pr.name}": end must be after start` };
   return { promo: pr };
 }
+/* ---------------- poster exhibition (homepage 3D gallery) ----------------
+   One slide per eligible set (published, with poster images), in the order the
+   admin saves. Settings live as JSON in the content store under the reserved
+   key "_exhibition" (no schema change):
+     { enabled, order:[productId…], hidden:[productId…], labels:{id:label},
+       info:{ productId:{ posterUrl:{title,text} } } }
+   - order keeps hidden/unpublished ids, so restoring a set restores its slot;
+   - sets not in order yet (new products) follow, oldest first → appended;
+   - per-poster info: admin override → shipped default (data/exhibition-defaults.json,
+     keyed by the exact image URL) → empty (the UI falls back gracefully).
+   The shop's own product order is never touched. */
+const EXHIBIT_KEY = '_exhibition';
+const EXHIBIT_DEFAULTS = (() => {
+  try{ return JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'exhibition-defaults.json'), 'utf8')).posters || {}; }
+  catch(e){ console.warn('[exhibition] no default poster descriptions:', e.message); return {}; }
+})();
+let exhibitCache = { raw: null, cfg: null };
+function exhibitionConfig(){
+  const raw = (db.content && db.content[EXHIBIT_KEY] && db.content[EXHIBIT_KEY].body) || '{}';
+  if(raw !== exhibitCache.raw){
+    let c = {}; try{ c = JSON.parse(raw) || {}; }catch(_){}
+    exhibitCache = { raw, cfg: {
+      enabled: c.enabled !== false,
+      order: Array.isArray(c.order) ? c.order.map(String) : [],
+      hidden: Array.isArray(c.hidden) ? c.hidden.map(String) : [],
+      labels: c.labels && typeof c.labels === 'object' ? c.labels : {},
+      info: c.info && typeof c.info === 'object' ? c.info : {} } };
+  }
+  return exhibitCache.cfg;
+}
+const posterImages = p => [...new Set((p.posters || []).filter(u => typeof u === 'string' && u.trim()))];
+function exhibitionOrdered(){
+  const cfg = exhibitionConfig();
+  const pos = new Map(cfg.order.map((id, i) => [id, i]));
+  return db.products.filter(p => posterImages(p).length)
+    .sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e9) - (pos.has(b.id) ? pos.get(b.id) : 1e9)
+      || (a.createdAt || 0) - (b.createdAt || 0) || String(a.id).localeCompare(String(b.id)));
+}
+function posterInfo(p, url){
+  const o = ((exhibitionConfig().info || {})[p.id] || {})[url] || {};
+  const d = EXHIBIT_DEFAULTS[url] || {};
+  return { title: o.title || d.title || '', text: o.text || d.text || '',
+    defaultTitle: d.title || '', defaultText: d.text || '', overridden: !!(o.title || o.text) };
+}
+function exhibitionPublic(){
+  const cfg = exhibitionConfig();
+  if(!cfg.enabled) return { enabled: false, sets: [] };
+  const cats = Object.fromEntries(db.categories.map(c => [c.id, c]));
+  const hidden = new Set(cfg.hidden);
+  const sets = exhibitionOrdered().filter(p => p.published && !hidden.has(p.id)).map(p => {
+    const imgs = posterImages(p);
+    return { id: p.id, slug: p.slug, setNo: p.setNo, name: String(cfg.labels[p.id] || p.name),
+      categories: (p.categoryIds || []).map(id => cats[id]).filter(c => c && c.visible !== false).map(c => c.name),
+      price: effPrice(p),
+      posters: imgs.map(url => { const i = posterInfo(p, url); return { url, title: i.title, text: i.text }; }),
+      missing: Math.max(0, 6 - imgs.length) };
+  });
+  return { enabled: true, sets };
+}
+app.get('/api/exhibition', (req,res)=>res.json(exhibitionPublic()));
+app.get('/api/admin/exhibition', requireAdmin, (req,res)=>{
+  const cfg = exhibitionConfig(), hidden = new Set(cfg.hidden);
+  const cats = Object.fromEntries(db.categories.map(c => [c.id, c.name]));
+  let n = 0;
+  res.json({ enabled: cfg.enabled, sets: exhibitionOrdered().map(p => {
+    const imgs = posterImages(p), visible = p.published && !hidden.has(p.id);
+    return { id: p.id, slug: p.slug, name: p.name, label: String(cfg.labels[p.id] || ''), cover: p.cover,
+      published: !!p.published, hidden: hidden.has(p.id), position: visible ? ++n : null,
+      categories: (p.categoryIds || []).map(id => cats[id]).filter(Boolean),
+      imageCount: imgs.length, missing: Math.max(0, 6 - imgs.length),
+      posters: imgs.map(url => ({ url, ...posterInfo(p, url) })) };
+  }) });
+});
+app.put('/api/admin/exhibition', requireAdmin, async (req,res)=>{
+  const b = req.body || {}, cur = exhibitionConfig();
+  const byId = new Map(db.products.map(p => [p.id, p]));
+  const ids = v => (Array.isArray(v) ? v : []).map(String).filter(id => byId.has(id));
+  const next = { enabled: b.enabled === undefined ? cur.enabled : !!b.enabled,
+    order: b.order ? [...new Set(ids(b.order))] : cur.order,
+    hidden: b.hidden ? [...new Set(ids(b.hidden))] : cur.hidden,
+    labels: { ...cur.labels }, info: JSON.parse(JSON.stringify(cur.info)) };
+  // keep saved positions of products the request did not mention (e.g. unpublished ones)
+  if(b.order) for(const id of cur.order) if(!next.order.includes(id)) next.order.push(id);
+  if(b.labels && typeof b.labels === 'object'){
+    for(const [id, v] of Object.entries(b.labels)){
+      if(!byId.has(id)) continue;
+      const s = String(v || '').trim().slice(0, 60);
+      if(s) next.labels[id] = s; else delete next.labels[id];
+    }
+  }
+  if(b.info && typeof b.info === 'object'){
+    for(const [id, posters] of Object.entries(b.info)){
+      const p = byId.get(id); if(!p || !posters || typeof posters !== 'object') continue;
+      const own = new Set(posterImages(p)), clean = {};
+      for(const [url, v] of Object.entries(posters)){
+        if(!own.has(url)) return res.status(400).json({ error: `A poster image does not belong to "${p.name}"` });
+        const title = String((v && v.title) || '').trim(), text = String((v && v.text) || '').trim();
+        if(title.length > 60) return res.status(400).json({ error: `Poster title too long in "${p.name}" (max 60)` });
+        if(text.length > 180) return res.status(400).json({ error: `Poster description too long in "${p.name}" (max 180 characters)` });
+        const d = EXHIBIT_DEFAULTS[url] || {};
+        // store only real changes; empty or equal-to-default means "use the default"
+        const o = {};
+        if(title && title !== d.title) o.title = title;
+        if(text && text !== d.text) o.text = text;
+        if(o.title || o.text) clean[url] = o;
+      }
+      if(Object.keys(clean).length) next.info[id] = clean; else delete next.info[id];
+    }
+  }
+  db.content = db.content || {};
+  db.content[EXHIBIT_KEY] = { title: 'Poster exhibition (internal)', body: JSON.stringify(next), updatedAt: Date.now() };
+  await saveDB(); res.json({ ok: true });
+});
+
 app.get('/api/admin/promotions', requireAdmin, (req,res)=>{
   const now = Date.now();
   res.json({ promotions: promotions().map(pr => ({ ...pr, running: promoRunning(pr, now),

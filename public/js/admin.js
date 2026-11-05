@@ -100,6 +100,7 @@ const NAV=[
   ['carts','🛒 Abandoned Carts','cartN'],
   ['designs','🎨 Custom Designs','dsgN'],
   ['home','🏠 Homepage'],
+  ['exhibit','🎨 Poster Exhibition'],
   ['content','📄 Content / CMS'],
   ['pay','🚚 Delivery & Payments'],
   ['settings','⚙ Store Settings']
@@ -757,6 +758,108 @@ async function vInv(pane){
 }
 
 /* ---------- coupons ---------- */
+/* ---------- poster exhibition (homepage 3D gallery) ---------- */
+async function vExhibit(pane){
+  const d=await api('/api/admin/exhibition');
+  const X={ enabled:d.enabled, sets:d.sets, open:null, dirty:false };
+  // editable copies of poster info / labels
+  X.sets.forEach(s=>{ s._label=s.label; s.posters.forEach(p=>{ p._title=p.overridden?p.title:''; p._text=p.overridden?p.text:''; }); });
+  const words=t=>String(t||'').trim().split(/\s+/).filter(Boolean).length;
+  const descOf=p=>(p._text||p.defaultText||'').trim();
+  function mark(){ X.dirty=true; const b=document.getElementById('ex_save'); if(b){ b.textContent='Save changes •'; b.classList.add('lime'); } }
+  function draw(){
+    let pos=0;
+    const vis=X.sets.filter(s=>s.published&&!s.hidden);
+    const posters=vis.reduce((n,s)=>n+s.imageCount,0);
+    pane.innerHTML=head('🎨 Poster Exhibition','The 3D poster exhibition on the homepage. One slide per set, in the order below. Drag rows (or use ↑ ↓) to reorder. Hiding a set only affects the exhibition: the product, stock and orders are untouched.')+`
+    <div class="panel" style="margin-bottom:16px"><div class="switchrow" style="border:0;padding:0"><div><b>Show the exhibition on the homepage</b>
+      <span>${vis.length} set(s) and ${posters} poster(s) will be shown. Newly published sets are added automatically at the end.</span></div>
+      <label class="tgl"><input type="checkbox" id="ex_on" ${X.enabled?'checked':''}><i></i></label></div></div>
+    <div class="arow" style="margin-bottom:14px;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0">
+      <button class="abtn ${X.dirty?'lime':''}" id="ex_save">${X.dirty?'Save changes •':'Save changes'}</button>
+      <a class="abtn ghost" href="/#g3d" target="_blank" rel="noopener">Preview on homepage ↗</a>
+      <span class="asub" style="margin:0">${X.dirty?'Unsaved changes — the homepage shows the last saved version.':'All changes saved.'}</span></div>
+    <ol class="exlist" id="exlist">${X.sets.map((s,i)=>{
+      const status=!s.published?'<span class="apill">NOT PUBLISHED</span>':s.hidden?'<span class="apill r">HIDDEN</span>':'<span class="apill g">VISIBLE</span>';
+      const p=s.published&&!s.hidden?++pos:null;
+      const noDesc=s.posters.filter(x=>!descOf(x)).length;
+      return `<li class="exrow ${p?'':'off'}" draggable="true" data-i="${i}">
+        <span class="exgrip" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
+        <span class="expos">${p?String(p).padStart(2,'0'):'—'}</span>
+        <img src="${esc(H.img(s.cover||(s.posters[0]||{}).url,200))}" alt="" class="athumb" onerror="this.style.visibility='hidden'">
+        <div class="exname"><b>${esc(s._label||s.name)}</b>${s._label?`<span class="asub" style="margin:0"> (product: ${esc(s.name)})</span>`:''}
+          <span>${esc(s.categories.join(', ')||'No category')} • ${s.imageCount}/6 posters${s.missing?` <b style="color:var(--gold)">⚠ ${s.missing} image(s) missing</b>`:''}
+          ${noDesc?` • <b style="color:var(--gold)">⚠ ${noDesc} without description</b>`:' • all described ✓'}</span></div>
+        ${status}
+        <div class="arow" style="flex-wrap:nowrap">
+          <button class="abtn sm ghost" data-mv="-1" aria-label="Move ${esc(s.name)} up">↑</button>
+          <button class="abtn sm ghost" data-mv="1" aria-label="Move ${esc(s.name)} down">↓</button>
+          ${s.published?`<button class="abtn sm ${s.hidden?'lime':'ghost'}" data-hide>${s.hidden?'Show':'Hide'}</button>`:''}
+          <button class="abtn sm ghost" data-open>${X.open===s.id?'Close':'Details'}</button></div>
+        ${X.open===s.id?details(s):''}
+      </li>`;}).join('')}</ol>
+    <p class="asub">Unpublished sets never appear publicly; their position and poster texts are kept for when you publish them again. The shop's own product order is not affected by this list.</p>`;
+    wire();
+  }
+  function details(s){
+    return `<div class="exdet" draggable="false">
+      <div class="fld" style="max-width:420px"><label>Exhibition label (optional — the product name stays unchanged)</label>
+        <input data-label value="${esc(s._label||'')}" placeholder="${esc(s.name)}" maxlength="60"></div>
+      ${s.missing?`<p style="color:var(--gold);font-size:13.5px">⚠ This set has ${s.imageCount} poster image(s); ${s.missing} missing. Add them in Products → Edit. The exhibition never duplicates images to fill gaps.</p>`:''}
+      <div class="exposters">${s.posters.map((p,j)=>`<div class="expost">
+        <a href="${esc(p.url)}" target="_blank" rel="noopener" title="Open the original image"><img src="${esc(H.img(p.url,400))}" alt="Poster ${j+1}"></a>
+        <div class="fld"><label>Poster ${j+1} title</label><input data-pt="${j}" value="${esc(p._title)}" placeholder="${esc(p.defaultTitle||'Poster '+(j+1))}" maxlength="60"></div>
+        <div class="fld"><label>Short description (8–20 words)</label><textarea data-px="${j}" rows="3" maxlength="180" placeholder="${esc(p.defaultText||'No description yet — write one so visitors see this poster\'s story.')}">${esc(p._text)}</textarea>
+          <span class="exwc" data-wc="${j}"></span></div>
+        <div class="arow" style="justify-content:space-between">${p.defaultText||p.defaultTitle?`<button class="abtn sm ghost" data-reset="${j}" ${p._title||p._text?'':'disabled'}>Restore default</button>`:'<span class="asub" style="margin:0;font-size:12px">No default text</span>'}
+          ${descOf(p)?'':'<b style="color:var(--gold);font-size:12.5px">⚠ Missing description</b>'}</div>
+      </div>`).join('')}</div>
+      <p class="asub" style="font-size:12.5px">Empty fields use the default text shown in grey. Visitors see the title and description when they hover (desktop) or tap (mobile) a poster.</p></div>`;
+  }
+  function wcUpdate(row,s){ row.querySelectorAll('[data-wc]').forEach(el=>{ const p=s.posters[+el.dataset.wc]; const t=descOf(p); const n=words(t);
+    el.textContent=t?n+' words'+(p._text?'':' (default)'):'';
+    el.style.color=t&&(n<8||n>20)?'var(--gold)':'var(--dim)'; }); }
+  function wire(){
+    document.getElementById('ex_on').onchange=e=>{ X.enabled=e.target.checked; mark(); draw(); };
+    document.getElementById('ex_save').onclick=save;
+    const list=document.getElementById('exlist');
+    list.querySelectorAll('.exrow').forEach(row=>{
+      const i=+row.dataset.i, s=X.sets[i];
+      row.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{ const j=i+ +b.dataset.mv; if(j<0||j>=X.sets.length) return;
+        [X.sets[i],X.sets[j]]=[X.sets[j],X.sets[i]]; mark(); draw(); const nb=document.querySelector(`.exrow[data-i="${j}"] [data-mv="${b.dataset.mv}"]`); if(nb) nb.focus(); });
+      const hb=row.querySelector('[data-hide]'); if(hb) hb.onclick=()=>{ s.hidden=!s.hidden; mark(); draw(); };
+      row.querySelector('[data-open]').onclick=()=>{ X.open=X.open===s.id?null:s.id; draw(); };
+      const det=row.querySelector('.exdet');
+      if(det){
+        // typing inside the details must not start a drag
+        det.addEventListener('mousedown',()=>row.setAttribute('draggable','false'));
+        det.addEventListener('mouseup',()=>row.setAttribute('draggable','true'));
+        det.querySelector('[data-label]').oninput=e=>{ s._label=e.target.value; mark(); };
+        det.querySelectorAll('[data-pt]').forEach(el=>el.oninput=()=>{ s.posters[+el.dataset.pt]._title=el.value; mark(); });
+        det.querySelectorAll('[data-px]').forEach(el=>el.oninput=()=>{ s.posters[+el.dataset.px]._text=el.value; mark(); wcUpdate(row,s); });
+        det.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{ const p=s.posters[+b.dataset.reset]; p._title=''; p._text=''; mark(); draw(); });
+        wcUpdate(row,s);
+      }
+      // drag and drop reordering
+      row.addEventListener('dragstart',e=>{ if(row.getAttribute('draggable')!=='true'){ e.preventDefault(); return; } e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',String(i)); row.classList.add('dragging'); });
+      row.addEventListener('dragend',()=>row.classList.remove('dragging'));
+      row.addEventListener('dragover',e=>{ e.preventDefault(); const r=row.getBoundingClientRect(); row.classList.toggle('dropafter',e.clientY>r.top+r.height/2); row.classList.toggle('dropbefore',e.clientY<=r.top+r.height/2); });
+      row.addEventListener('dragleave',()=>row.classList.remove('dropafter','dropbefore'));
+      row.addEventListener('drop',e=>{ e.preventDefault(); const from=+e.dataTransfer.getData('text/plain'); if(isNaN(from)) return;
+        const r=row.getBoundingClientRect(); let to=i+(e.clientY>r.top+r.height/2?1:0);
+        const [m]=X.sets.splice(from,1); if(from<to) to--; X.sets.splice(to,0,m); mark(); draw(); });
+    });
+  }
+  async function save(){
+    const body={ enabled:X.enabled, order:X.sets.map(s=>s.id), hidden:X.sets.filter(s=>s.hidden).map(s=>s.id),
+      labels:Object.fromEntries(X.sets.map(s=>[s.id,s._label||''])),
+      info:Object.fromEntries(X.sets.map(s=>[s.id,Object.fromEntries(s.posters.map(p=>[p.url,{title:p._title||'',text:p._text||''}]))])) };
+    try{ await api('/api/admin/exhibition',{method:'PUT',body}); toast('Exhibition saved — the homepage now uses this order',true); vExhibit(pane); }
+    catch(e){ toast(e.message); }
+  }
+  draw();
+}
+
 /* ---------- promotions (scheduled sales) ---------- */
 async function vPromos(pane){
   const [d,cd]=await Promise.all([api('/api/admin/promotions'),api('/api/admin/categories')]);
@@ -1047,6 +1150,7 @@ async function runView(pane){
     else if(A.tab==='inv') await vInv(pane);
     else if(A.tab==='coupons') await vCoupons(pane);
     else if(A.tab==='promos') await vPromos(pane);
+    else if(A.tab==='exhibit') await vExhibit(pane);
     else if(A.tab==='pay') await vPay(pane);
   else if(A.tab==='settings') await vSettings(pane);
 }

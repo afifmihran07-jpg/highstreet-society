@@ -1,118 +1,240 @@
-/* HSS — 3D floating poster gallery (homepage, below the hero).
-   Pure CSS 3D transforms; no libraries. Posters are the real catalogue
-   artwork (product.posters from /api/products), shown through the existing
-   /img resizer (a resized copy — the original artwork is never altered), and
-   each poster links to its product page.
-   Mount: HSSGallery3D.mount(sectionEl). Styles: .g3d* in /css/app.css. */
+/* HSS — 3D poster exhibition (homepage, directly below the hero).
+   One slide per product set, in the order saved in Admin → Poster Exhibition
+   (GET /api/exhibition). Each slide floats that set's own poster artwork (never
+   mixed, never duplicated), shown through the existing /img resizer — the
+   original artwork is never altered. Every poster has its own short info
+   (hover/focus on desktop, tap on touch) and leads to the set's product page.
+   Pure CSS 3D transforms; no libraries. Styles: .g3d* in /css/app.css. */
 (function(){
 const H = window.HSS;
 if(!H) return;
 
-/* Composition slots: x/y = % of the stage, z = depth (px), w = card width (px),
-   ry/rz = resting rotation (deg), d = float duration (s). Front-to-back variety,
-   nothing crossing the centre too aggressively. Far cards sit further out in
-   x because perspective pulls distant objects towards the vanishing point. */
+/* Desktop/tablet composition for up to six posters: slot 0 is the hero poster
+   (largest, closest); the rest fan out at different depths and angles with
+   minimal overlap. Far slots sit wider in x because perspective pulls distant
+   objects towards the vanishing point. */
 const DESKTOP = [
-  { x:50, y:50, z:110,  w:196, ry:0,   rz:0,  d:7.0 },
-  { x:31, y:44, z:10,   w:168, ry:14,  rz:-3, d:8.2 },
-  { x:69, y:46, z:20,   w:168, ry:-14, rz:3,  d:7.6 },
-  { x:11, y:60, z:-120, w:150, ry:22,  rz:-5, d:9.1 },
-  { x:89, y:57, z:-110, w:150, ry:-22, rz:5,  d:8.7 },
-  { x:36, y:22, z:-270, w:128, ry:8,   rz:2,  d:9.6 },
-  { x:64, y:80, z:-210, w:132, ry:-8,  rz:-2, d:8.9 },
-  { x:13, y:16, z:-350, w:118, ry:18,  rz:4,  d:10.2 },
-  { x:87, y:18, z:-330, w:118, ry:-18, rz:-4, d:9.8 },
-  { x:-5, y:34, z:-430, w:108, ry:26,  rz:6,  d:10.8 },
-  { x:105,y:80, z:-410, w:108, ry:-26, rz:-6, d:10.4 }
+  { x:41, y:50, z:120,  w:190, ry:6,   rz:0,  d:7.2 },
+  { x:60, y:46, z:20,   w:160, ry:-10, rz:2,  d:8.1 },
+  { x:23, y:44, z:-60,  w:140, ry:16,  rz:-3, d:8.8 },
+  { x:78, y:48, z:-60,  w:140, ry:-16, rz:3,  d:8.4 },
+  { x:7,  y:58, z:-180, w:120, ry:24,  rz:-5, d:9.6 },
+  { x:93, y:60, z:-180, w:120, ry:-24, rz:5,  d:9.3 }
 ];
+/* Mobile: 2 rows × 3 columns, widths in % of the stage so all six always fit
+   side by side without overlapping touch targets; only subtle depth/rotation. */
 const MOBILE = [
-  { x:50, y:52, z:60,   w:126, ry:0,   rz:0,  d:8.0 },
-  { x:16, y:40, z:-50,  w:100, ry:16,  rz:-4, d:9.0 },
-  { x:84, y:42, z:-40,  w:100, ry:-16, rz:4,  d:8.6 },
-  { x:26, y:86, z:-150, w:88,  ry:10,  rz:3,  d:9.6 },
-  { x:74, y:13, z:-160, w:88,  ry:-10, rz:-3, d:9.4 },
-  { x:-1, y:80, z:-230, w:80,  ry:22,  rz:5,  d:10.4 },
-  { x:101,y:82, z:-220, w:80,  ry:-22, rz:-5, d:10.0 }
+  { x:17.5, y:27, z:10,  w:'27%', ry:6,  rz:-2,  d:8.0 },
+  { x:50,   y:26, z:18,  w:'27%', ry:0,  rz:1,   d:8.6 },
+  { x:82.5, y:27, z:10,  w:'27%', ry:-6, rz:2,   d:8.3 },
+  { x:17.5, y:74, z:0,   w:'27%', ry:7,  rz:1.5, d:9.0 },
+  { x:50,   y:76, z:8,   w:'27%', ry:0,  rz:-1,  d:8.8 },
+  { x:82.5, y:74, z:0,   w:'27%', ry:-7, rz:-1.5,d:9.2 }
 ];
-
 const mqMobile = matchMedia('(max-width:700px)');
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 const mqFine = matchMedia('(hover:hover) and (pointer:fine)');
+const pad = n => String(n).padStart(2, '0');
 
-/* One distinct poster per set (rotating through each set's six artworks so
-   neighbouring cards differ), falling back to the cover only if a set has no
-   individual poster images. */
-function pickPosters(products, n){
-  const out = [];
-  products.forEach((p, i) => {
-    const arts = (p.posters || []).filter(Boolean);
-    const url = arts.length ? arts[(i * 2) % arts.length] : p.cover;
-    if(url && p.slug) out.push({ url, slug: p.slug, name: p.name || 'Poster set', setNo: p.setNo });
-  });
-  return out.slice(0, n);
+function mount(section){
+  if(!section) return;
+  H.api('/api/exhibition').then(d => {
+    const sets = (d && d.enabled && d.sets || []).filter(s => s.posters && s.posters.length);
+    if(!sets.length){ section.remove(); return; }
+    build(section, sets);
+  }).catch(() => section.remove());
 }
 
-function render(section, posters){
-  const slots = (mqMobile.matches ? MOBILE : DESKTOP).slice(0, posters.length);
-  const stage = section.querySelector('.g3d-stage');
-  // tab order follows the visual left-to-right reading order
-  const cards = slots.map((s, i) => ({ s, p: posters[i] })).sort((a, b) => a.s.x - b.s.x || a.s.y - b.s.y);
-  const minZ = -450, maxZ = 120;
-  stage.querySelector('.g3d-world').innerHTML = cards.map(({ s, p }, i) => {
-    const depth = (s.z - minZ) / (maxZ - minZ);              // 0 = far … 1 = near
-    const style = `--x:${s.x}%;--y:${s.y}%;--z:${s.z}px;--w:${s.w}px;--ry:${s.ry}deg;--rz:${s.rz}deg;` +
-      `--dur:${s.d}s;--delay:${-(i * 1.37 % s.d).toFixed(2)}s;--i:${i};--lit:${(0.62 + depth * 0.38).toFixed(2)}`;
-    return `<a class="g3d-card" href="/product/${encodeURIComponent(p.slug)}" style="${style}"
-        aria-label="${H.esc(p.name)}${p.setNo ? ' (Set ' + H.esc(p.setNo) + ')' : ''}: view this poster set">
-      <span class="g3d-float"><span class="g3d-inner">
-        <img src="${H.esc(H.img(p.url, 400))}" alt="" width="400" height="566" loading="lazy" decoding="async">
-        <span class="g3d-sheen" aria-hidden="true"></span>
-      </span></span>
-      <span class="g3d-label" aria-hidden="true">${H.esc(p.name)}</span>
-    </a>`;
-  }).join('');
-  // a poster whose image fails is removed rather than shown broken
-  stage.querySelectorAll('.g3d-card img').forEach(img => img.addEventListener('error', () => {
-    const c = img.closest('.g3d-card'); if(c) c.remove();
-    if(!stage.querySelector('.g3d-card')) section.remove();
-  }, { once: true }));
-}
-
-function wireMotion(section){
+function build(section, sets){
+  const S = { sets, i: 0, sel: 0, busy: false };
   const stage = section.querySelector('.g3d-stage');
   const world = section.querySelector('.g3d-world');
-  // entrance + pause animations while off-screen (saves CPU/battery)
+  stage.insertAdjacentHTML('afterend', `
+    <div class="g3d-info" aria-live="polite"></div>
+    <div class="g3d-nav">
+      <div class="g3d-meta"><span class="g3d-count"></span><b class="g3d-title"></b></div>
+      <div class="g3d-ctrl">
+        <button type="button" class="g3d-arrow" data-dir="-1" aria-label="Previous set">‹</button>
+        <div class="g3d-dots" role="group" aria-label="Choose a poster set">${sets.map((s, i) =>
+          `<button type="button" class="g3d-dot" data-i="${i}" aria-label="Set ${i + 1} of ${sets.length}: ${H.esc(s.name)}"><i></i></button>`).join('')}</div>
+        <button type="button" class="g3d-arrow" data-dir="1" aria-label="Next set">›</button>
+      </div>
+      <div class="g3d-links"><a class="g3d-cta" href="#">Explore this set →</a><a class="g3d-all" href="/shop">View all sets</a></div>
+    </div>`);
+  const info = section.querySelector('.g3d-info');
+  const touch = () => !mqFine.matches;
+
+  function cardsHtml(set){
+    const slots = mqMobile.matches ? MOBILE : DESKTOP;
+    const n = set.posters.length;
+    return set.posters.map((p, i) => ({ p, i, s: slots[i % slots.length] }))
+      // tab order follows what the eye reads: rows, then left → right
+      .sort((a, b) => mqMobile.matches ? (a.s.y > 50) - (b.s.y > 50) || a.s.x - b.s.x : a.s.x - b.s.x)
+      .map(({ p, i, s }) => {
+        const depth = (s.z + 200) / 320;
+        const w = typeof s.w === 'string' ? s.w : s.w + 'px';
+        const style = `--x:${s.x}%;--y:${s.y}%;--z:${s.z}px;--w:${w};--ry:${s.ry}deg;--rz:${s.rz}deg;` +
+          `--dur:${s.d}s;--delay:${-(i * 1.37 % s.d).toFixed(2)}s;--i:${i};--lit:${Math.min(1, 0.7 + depth * 0.3).toFixed(2)}`;
+        const name = p.title || `Poster ${i + 1}`;
+        return `<a class="g3d-card pre" href="/product/${encodeURIComponent(set.slug)}" data-p="${i}" style="${style}"
+            aria-label="${H.esc(name)}, poster ${i + 1} of ${n} in ${H.esc(set.name)}. Open the set">
+          <span class="g3d-float"><span class="g3d-inner">
+            <img src="${H.esc(H.img(p.url, 400))}" alt="" width="400" height="566" decoding="async" ${i === 0 ? 'fetchpriority="high"' : ''}>
+            <span class="g3d-sheen" aria-hidden="true"></span>
+          </span></span>
+        </a>`;
+      }).join('');
+  }
+
+  function showInfo(pi){
+    const set = S.sets[S.i], p = set.posters[pi];
+    if(!p) return;
+    S.sel = pi;
+    world.querySelectorAll('.g3d-card').forEach(c => c.classList.toggle('sel', +c.dataset.p === pi && touch()));
+    const title = p.title || `Poster ${pi + 1}`;
+    const text = p.text || `One of ${set.posters.length} A4 posters in ${set.name}, printed on 3mm board.`;
+    info.innerHTML = `<div class="g3d-info-tx"><span class="g3d-pn">Poster ${pi + 1} / ${set.posters.length}</span>
+        <b>${H.esc(title)}</b><p>${H.esc(text)}</p></div>
+      <div class="g3d-info-act"><button type="button" class="g3d-zoom">View larger</button>
+        <a class="g3d-go" href="/product/${encodeURIComponent(set.slug)}">Explore set →</a></div>`;
+    info.querySelector('.g3d-zoom').onclick = () => openLightbox(pi);
+  }
+
+  function updateNav(){
+    const set = S.sets[S.i];
+    section.querySelector('.g3d-count').textContent = `${pad(S.i + 1)} / ${pad(S.sets.length)}`;
+    section.querySelector('.g3d-title').textContent = set.name;
+    section.querySelector('.g3d-cta').href = '/product/' + encodeURIComponent(set.slug);
+    section.querySelector('.g3d-cta').setAttribute('aria-label', 'Explore the ' + set.name + ' set');
+    section.querySelectorAll('.g3d-dot').forEach((b, i) => {
+      b.classList.toggle('on', i === S.i);
+      if(i === S.i) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+    });
+    const on = section.querySelector('.g3d-dot.on'), box = section.querySelector('.g3d-dots');
+    if(on && box.scrollWidth > box.clientWidth) box.scrollLeft = on.offsetLeft - box.clientWidth / 2 + on.offsetWidth / 2;
+  }
+
+  function wireCards(){
+    world.querySelectorAll('.g3d-card').forEach(c => {
+      const pi = +c.dataset.p;
+      c.addEventListener('mouseenter', () => { if(!touch()) showInfo(pi); });
+      c.addEventListener('focus', () => showInfo(pi));
+      c.addEventListener('click', e => {
+        // touch: first tap selects + reveals info; "Explore set" navigates
+        if(touch()){ e.preventDefault(); showInfo(pi); }
+      });
+      const img = c.querySelector('img');
+      img.addEventListener('error', () => { c.remove(); }, { once: true });
+    });
+  }
+
+  function render(i, dir){
+    const old = [...world.querySelectorAll('.g3d-card')];
+    S.i = (i + S.sets.length) % S.sets.length;
+    old.forEach(c => { c.classList.add('leave'); c.style.setProperty('--dir', dir || 1); c.setAttribute('tabindex', '-1'); c.setAttribute('aria-hidden', 'true'); });
+    setTimeout(() => old.forEach(c => c.remove()), mqReduce.matches ? 0 : 650);
+    world.insertAdjacentHTML('beforeend', cardsHtml(S.sets[S.i]));
+    const fresh = [...world.querySelectorAll('.g3d-card.pre')];
+    wireCards();
+    const reveal = () => fresh.forEach(c => c.classList.remove('pre'));
+    if(mqReduce.matches) reveal(); else requestAnimationFrame(() => requestAnimationFrame(reveal));
+    updateNav();
+    showInfo(0);
+    preloadAround();
+  }
+  // lazy: only the active set renders; neighbours are fetched quietly afterwards
+  const preloaded = new Set();
+  function preloadAround(){
+    const go = () => [1, -1].forEach(o => {
+      const s = S.sets[(S.i + o + S.sets.length) % S.sets.length];
+      if(preloaded.has(s.id)) return; preloaded.add(s.id);
+      s.posters.forEach(p => { const im = new Image(); im.decoding = 'async'; im.src = H.img(p.url, 400); });
+    });
+    (window.requestIdleCallback || (f => setTimeout(f, 1200)))(go);
+  }
+  const go = d => render(S.i + d, d);
+
+  section.querySelectorAll('.g3d-arrow').forEach(b => b.onclick = () => go(+b.dataset.dir));
+  section.querySelectorAll('.g3d-dot').forEach(b => b.onclick = () => { const i = +b.dataset.i; if(i !== S.i) render(i, i > S.i ? 1 : -1); });
+  section.querySelector('.g3d-ctrl').addEventListener('keydown', e => {
+    if(e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault(); go(e.key === 'ArrowRight' ? 1 : -1);
+    const on = section.querySelector('.g3d-dot.on'); if(on && e.target.classList.contains('g3d-dot')) on.focus();
+  });
+  // swipe between sets on touch screens (outside the posters' own taps)
+  let sx = null;
+  stage.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', e => { if(sx == null) return; const dx = e.changedTouches[0].clientX - sx; sx = null; if(Math.abs(dx) > 60) go(dx < 0 ? 1 : -1); }, { passive: true });
+
+  /* ---------- lightbox: the set's artwork at full size, poster info, explore ---------- */
+  let lb = null, lbi = 0, lastFocus = null;
+  function openLightbox(pi){
+    lastFocus = document.activeElement;
+    if(!lb){
+      lb = document.createElement('div');
+      lb.className = 'g3d-lb'; lb.setAttribute('role', 'dialog'); lb.setAttribute('aria-modal', 'true'); lb.setAttribute('aria-label', 'Poster preview');
+      lb.innerHTML = `<button type="button" class="g3d-lb-x" aria-label="Close">✕</button>
+        <button type="button" class="g3d-lb-nav" data-d="-1" aria-label="Previous poster">‹</button>
+        <figure><img alt=""><figcaption></figcaption></figure>
+        <button type="button" class="g3d-lb-nav" data-d="1" aria-label="Next poster">›</button>`;
+      document.body.appendChild(lb);
+      lb.querySelector('.g3d-lb-x').onclick = closeLightbox;
+      lb.querySelectorAll('.g3d-lb-nav').forEach(b => b.onclick = () => showLb(lbi + +b.dataset.d));
+      lb.addEventListener('click', e => { if(e.target === lb) closeLightbox(); });
+      lb.addEventListener('keydown', e => {
+        if(e.key === 'Escape') closeLightbox();
+        else if(e.key === 'ArrowRight') showLb(lbi + 1);
+        else if(e.key === 'ArrowLeft') showLb(lbi - 1);
+        else if(e.key === 'Tab'){                       // keep focus inside the dialog
+          const f = [...lb.querySelectorAll('button,a[href]')]; const first = f[0], last = f[f.length - 1];
+          if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+          else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+        }
+      });
+    }
+    showLb(pi);
+    lb.classList.add('open'); document.body.classList.add('g3d-lb-open');
+    lb.querySelector('.g3d-lb-x').focus();
+  }
+  function showLb(pi){
+    const set = S.sets[S.i], n = set.posters.length;
+    lbi = (pi + n) % n;
+    const p = set.posters[lbi];
+    const img = lb.querySelector('img');
+    img.src = H.img(p.url, 1200); img.alt = p.title || `Poster ${lbi + 1} of ${set.name}`;
+    img.onerror = () => { img.onerror = null; img.src = p.url; };
+    lb.querySelector('figcaption').innerHTML = `<span class="g3d-pn">${H.esc(set.name)} • Poster ${lbi + 1} / ${n}</span>
+      <b>${H.esc(p.title || 'Poster ' + (lbi + 1))}</b><p>${H.esc(p.text || '')}</p>
+      <a class="btn btn-lime" href="/product/${encodeURIComponent(set.slug)}">Explore set →</a>`;
+    showInfo(lbi);
+  }
+  function closeLightbox(){
+    lb.classList.remove('open'); document.body.classList.remove('g3d-lb-open');
+    if(lastFocus && lastFocus.isConnected) lastFocus.focus();
+  }
+
+  /* ---------- motion: entrance, off-screen pause, desktop parallax ---------- */
   if('IntersectionObserver' in window){
     new IntersectionObserver(([e]) => {
       if(e.isIntersecting) section.classList.add('in');
       section.classList.toggle('paused', !e.isIntersecting);
     }, { threshold: 0.12 }).observe(section);
   } else section.classList.add('in');
-  // desktop mouse parallax (fine pointers only, never with reduced motion)
   let raf = 0, tx = 0, ty = 0;
   const apply = () => { raf = 0; world.style.setProperty('--py', tx.toFixed(2) + 'deg'); world.style.setProperty('--px', ty.toFixed(2) + 'deg'); };
   stage.addEventListener('pointermove', e => {
     if(!mqFine.matches || mqReduce.matches || e.pointerType !== 'mouse') return;
     const r = stage.getBoundingClientRect();
-    tx = ((e.clientX - r.left) / r.width - 0.5) * 10;       // ±5° yaw
-    ty = -((e.clientY - r.top) / r.height - 0.5) * 6;       // ±3° pitch
+    tx = ((e.clientX - r.left) / r.width - 0.5) * 10;
+    ty = -((e.clientY - r.top) / r.height - 0.5) * 6;
     if(!raf) raf = requestAnimationFrame(apply);
   });
   stage.addEventListener('pointerleave', () => { tx = ty = 0; if(!raf) raf = requestAnimationFrame(apply); });
+  let wasMobile = mqMobile.matches;
+  mqMobile.addEventListener('change', () => { if(mqMobile.matches !== wasMobile){ wasMobile = mqMobile.matches; render(S.i, 1); } });
+
+  render(0, 1);                       // the first set in the admin order opens by default
 }
 
-async function mount(section){
-  if(!section) return;
-  try{
-    const d = await H.api('/api/products?limit=24&sort=featured');
-    const posters = pickPosters(d.items || [], DESKTOP.length);
-    if(posters.length < 4){ section.remove(); return; }       // not enough real artwork: no gallery
-    render(section, posters);
-    wireMotion(section);
-    let wasMobile = mqMobile.matches;
-    mqMobile.addEventListener('change', () => { if(mqMobile.matches !== wasMobile){ wasMobile = mqMobile.matches; render(section, posters); } });
-  }catch(e){ section.remove(); }
-}
-
-window.HSSGallery3D = { mount, pickPosters };
+window.HSSGallery3D = { mount };
 })();

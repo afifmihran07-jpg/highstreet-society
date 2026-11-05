@@ -77,7 +77,7 @@ try{
   </section>`}
 
   ${show.gallery===false?'':`<section class="g3d" id="g3d" aria-label="Poster exhibition"><div class="wrap">
-    <div class="shead"><div><h2>THE POSTER <span class="l">EXHIBITION</span></h2><p>Real sets from the collection. Tap any poster to open its set.</p></div><a class="more" href="/shop">All sets →</a></div>
+    <div class="shead"><div><h2>THE POSTER <span class="l">EXHIBITION</span></h2><p>Every set, six original posters. Hover or tap a poster for its story.</p></div></div>
     <div class="g3d-stage"><div class="g3d-world"></div></div>
   </div></section>`}
 
