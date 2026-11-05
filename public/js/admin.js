@@ -682,7 +682,7 @@ async function vHome(pane){
     ${cats.map(c=>`<label style="display:inline-flex;align-items:center;gap:7px;font-size:14px;border:1px solid var(--line2);border-radius:99px;padding:8px 16px"><input type="checkbox" class="hcat" value="${c.id}" ${(Hh.collectionCategoryIds||[]).includes(c.id)?'checked':''} style="width:auto"> ${esc(c.name)}</label>`).join('')}
   </div><div class="fld" style="margin-top:12px"><label>Perks section title</label><input id="h_perks" value="${esc(Hh.perksTitle||'')}"></div></div>
   <div class="panel" style="margin-bottom:18px"><h2>Visible sections</h2>
-    ${[['hero','Hero banner'],['marquee','Marquee strip'],['new','New arrivals'],['best','Best sellers'],['featured','Featured'],['collections','Collections'],['perks','Perks'],['insta','Instagram CTA']].map(x=>`
+    ${[['hero','Hero banner'],['gallery','3D poster gallery'],['marquee','Marquee strip'],['new','New arrivals'],['best','Best sellers'],['featured','Featured'],['collections','Collections'],['perks','Perks'],['insta','Instagram CTA']].map(x=>`
     <div class="switchrow"><div><b>${x[1]}</b></div><label class="tgl"><input type="checkbox" id="sec_${x[0]}" ${(Hh.showSections||{})[x[0]]!==false?'checked':''}><i></i></label></div>`).join('')}
   </div>
   <button class="abtn lime" style="padding:14px 34px;margin-bottom:40px" onclick="HSAVE()">Save homepage →</button>`;
@@ -736,7 +736,7 @@ async function vHome(pane){
       collectionCategoryIds:[...document.querySelectorAll('.hcat:checked')].map(x=>x.value),
       perksTitle:document.getElementById('h_perks').value,
       showSections:{} };
-    ['hero','marquee','new','best','featured','collections','perks','insta'].forEach(k=>body.showSections[k]=document.getElementById('sec_'+k).checked);
+    ['hero','gallery','marquee','new','best','featured','collections','perks','insta'].forEach(k=>body.showSections[k]=document.getElementById('sec_'+k).checked);
     try{ await api('/api/admin/homepage',{method:'PUT',body}); toast('Homepage saved',true); }catch(e){ toast(e.message); }
   };
 }

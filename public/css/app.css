@@ -975,3 +975,63 @@ footer.site{margin-top:48px}
   .wafab{transition:transform .22s ease}
   body.has-stickybuy .wafab{transform:translateY(-76px)}
 }
+
+/* ---------- 3D floating poster gallery (homepage, below the hero) ---------- */
+.g3d{position:relative;padding:34px 0 0}
+.g3d .shead{margin-bottom:6px}
+.g3d-stage{position:relative;height:560px;perspective:1300px;perspective-origin:50% 42%;overflow:hidden;
+  border-radius:var(--r);isolation:isolate;
+  background:
+    radial-gradient(60% 55% at 50% 42%,rgba(139,92,246,.20),transparent 70%),
+    radial-gradient(40% 22% at 50% 100%,rgba(215,255,62,.13),transparent 75%),
+    linear-gradient(180deg,#0E0B16 0%,#0B0B0F 100%)}
+.g3d-stage::before{content:"";position:absolute;left:8%;right:8%;bottom:9%;height:1px;z-index:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(215,255,62,.35),transparent);box-shadow:0 0 22px rgba(215,255,62,.25)}
+.g3d-stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(120% 90% at 50% 45%,transparent 60%,rgba(11,11,15,.85) 100%)}
+.g3d-world{position:absolute;inset:0;transform-style:preserve-3d;z-index:1;
+  transform:rotateX(var(--px,0deg)) rotateY(var(--py,0deg));transition:transform .9s cubic-bezier(.2,.7,.2,1)}
+.g3d-card{position:absolute;left:var(--x);top:var(--y);width:calc(var(--w) * var(--ws,1));display:block;transform-style:preserve-3d;
+  transform:translate(-50%,-50%) translateZ(var(--z)) rotateY(var(--ry)) rotateZ(var(--rz));
+  opacity:0;transition:opacity .9s ease,transform 1.2s cubic-bezier(.16,.8,.24,1);
+  transition-delay:calc(var(--i) * 70ms);outline:none;-webkit-tap-highlight-color:transparent}
+.g3d:not(.in) .g3d-card{transform:translate(-50%,-40%) translateZ(calc(var(--z) - 320px)) rotateY(var(--ry)) rotateZ(var(--rz))}
+.g3d.in .g3d-card{opacity:1}
+.g3d-float{display:block;transform-style:preserve-3d;animation:g3dfloat var(--dur) ease-in-out var(--delay) infinite alternate}
+.g3d.paused .g3d-float{animation-play-state:paused}
+@keyframes g3dfloat{
+  from{transform:translate3d(0,-9px,0) rotateX(2deg) rotateY(-3deg)}
+  to  {transform:translate3d(0,11px,0) rotateX(-2deg) rotateY(3deg)}}
+.g3d-inner{position:relative;display:block;aspect-ratio:210/297;border-radius:5px;overflow:hidden;background:var(--card2);
+  filter:brightness(var(--lit,1));
+  box-shadow:0 34px 60px -22px rgba(0,0,0,.85),0 12px 24px -12px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.07);
+  transition:transform .5s cubic-bezier(.2,.8,.2,1),box-shadow .5s ease,filter .5s ease}
+.g3d-inner img{display:block;width:100%;height:100%;object-fit:cover}
+.g3d-sheen{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s ease;
+  background:linear-gradient(115deg,transparent 28%,rgba(255,255,255,.16) 46%,transparent 62%)}
+.g3d-label{position:absolute;left:50%;top:100%;transform:translate(-50%,46px) translateZ(100px);white-space:nowrap;pointer-events:none;
+  font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--lime);
+  background:rgba(11,11,15,.85);border:1px solid rgba(215,255,62,.3);padding:5px 11px;border-radius:99px;
+  opacity:0;transition:opacity .35s ease}
+@media (hover:hover) and (pointer:fine){
+  .g3d-card:hover .g3d-inner{transform:translateZ(90px) scale(1.12);filter:brightness(1.05);
+    box-shadow:0 46px 80px -22px rgba(0,0,0,.92),0 0 34px rgba(215,255,62,.28),0 0 0 1px rgba(215,255,62,.55)}
+  .g3d-card:hover .g3d-sheen,.g3d-card:hover .g3d-label{opacity:1}
+  .g3d-stage:hover .g3d-card:not(:hover) .g3d-inner{filter:brightness(calc(var(--lit,1) * .72))}
+}
+.g3d-card:focus-visible .g3d-inner{transform:translateZ(90px) scale(1.12);filter:brightness(1.05);
+  box-shadow:0 46px 80px -22px rgba(0,0,0,.92),0 0 0 3px var(--lime)}
+.g3d-card:focus-visible .g3d-label{opacity:1}
+.g3d-card:active .g3d-inner{transform:translateZ(40px) scale(1.05)}
+@media (min-width:701px) and (max-width:1024px){.g3d-stage{height:500px;--ws:.74}}
+@media (max-width:700px){
+  .g3d{padding-top:26px}
+  .g3d-stage{height:440px;perspective:900px;border-radius:var(--r-sm)}
+  .g3d-label{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .g3d-float{animation:none}
+  .g3d-card,.g3d-world,.g3d-inner,.g3d-sheen{transition:none}
+  .g3d:not(.in) .g3d-card{transform:translate(-50%,-50%) translateZ(var(--z)) rotateY(var(--ry)) rotateZ(var(--rz))}
+  .g3d-card{opacity:1}
+}

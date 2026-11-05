@@ -76,6 +76,11 @@ try{
     <div class="hero2-foot">${v('strip')}</div>
   </section>`}
 
+  ${show.gallery===false?'':`<section class="g3d" id="g3d" aria-label="Poster exhibition"><div class="wrap">
+    <div class="shead"><div><h2>THE POSTER <span class="l">EXHIBITION</span></h2><p>Real sets from the collection. Tap any poster to open its set.</p></div><a class="more" href="/shop">All sets →</a></div>
+    <div class="g3d-stage"><div class="g3d-world"></div></div>
+  </div></section>`}
+
   ${show.marquee===false?'':`<div class="marquee"><div class="track">${marquee.map(t=>`<span>${H.esc(t)} <b>✦</b></span>`).join('').repeat(Math.max(2, Math.ceil(16/marquee.length)))}</div></div>`}
 
   ${show.new===false||!d.newArrivals.length?'':block('new','rail',d.newArrivals.map(H.card).join(''),'<a class="more" href="/shop?filter=new">View all →</a>')}
@@ -110,6 +115,8 @@ try{
     </div>
   </div></div>`}
   `;
+  // 3D poster gallery (public/js/gallery3d.js) fills its reserved stage after the page paints
+  if(window.HSSGallery3D) HSSGallery3D.mount(document.getElementById('g3d'));
 }catch(e){
   el.innerHTML = `<div class="wrap">${H.empty('😕','Could not load the store','Please check your connection and refresh.','<button class="btn btn-lime" onclick="location.reload()">Retry</button>')}</div>`;
 }
