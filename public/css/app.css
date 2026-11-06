@@ -1430,3 +1430,46 @@ main#content:empty,
   .hc-p{transition:none;translate:none}
   .hc-live .hc-p:hover{scale:none}
 }
+
+/* ============ Direction A — Editorial / Contemporary Art ============
+   A refinement layer, not a redesign. Archivo Black (anchor) and Space Grotesk
+   (support) stay the primary type. One editorial serif, Instrument Serif italic,
+   is self-hosted (latin subset, 22 KB, SIL OFL: /fonts/InstrumentSerif-OFL.txt)
+   and used ONLY as an accent:
+     - the hero italic (replaces the system Times New Roman, which rendered
+       differently on every platform and does not exist on Android);
+     - the accented last word of homepage section titles;
+     - the homepage marquee.
+   Product titles, prices, set numbers and all metadata stay in Space Grotesk.
+   Homepage sections open with a hairline + short lime bar. Every poster frame
+   (hero collage, card walls, product set view) shares one hairline edge.
+   Grain, purple lighting and the colour identity are untouched. */
+@font-face{
+  font-family:'Instrument Serif'; font-style:italic; font-weight:400; font-display:swap;
+  src:url('/fonts/instrument-serif-italic-latin.woff2') format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+:root{
+  --serif:'Instrument Serif',Georgia,'Times New Roman',serif;
+  --poster-edge:0 0 0 1px rgba(255,255,255,.1);
+}
+
+/* hero italic: one deliberate editorial serif (same colour as before) */
+.hero2-tx h1 em{ font-family:var(--serif); font-style:italic; font-weight:400; font-size:1.12em; letter-spacing:-.005em }
+
+/* homepage section titles: the accented last word becomes an editorial italic caption */
+.page-home .shead h2 .l{ font-family:var(--serif); font-style:italic; font-weight:400; letter-spacing:0;
+  font-size:1.16em; line-height:.9; text-transform:lowercase; display:inline-block }
+.page-home .shead h2 .l::first-letter{ text-transform:uppercase }
+
+/* homepage section opener: hairline + short lime bar (echoes the exhibition's marker) */
+.page-home .shead{ position:relative; border-top:1px solid rgba(255,255,255,.09); padding-top:20px }
+.page-home .shead::before{ content:""; position:absolute; top:-1px; left:0; width:48px; height:2px; background:var(--lime) }
+
+/* homepage marquee: italic serif, authored capitals kept as written */
+.page-home .marquee span{ font-family:var(--serif); font-style:italic; font-weight:400; font-size:19px; letter-spacing:.02em }
+
+/* one poster-frame edge everywhere a print appears (depth shadows unchanged) */
+.pw{ box-shadow:0 6px 14px -6px rgba(0,0,0,.75), var(--poster-edge) }
+.gsp{ box-shadow:0 10px 22px -10px rgba(0,0,0,.8), var(--poster-edge) }
+.hc-f{ box-shadow:0 calc(4px + var(--z) * 7px) calc(12px + var(--z) * 12px) rgba(6,2,14,.55), 0 1px 3px rgba(0,0,0,.4), var(--poster-edge) }
