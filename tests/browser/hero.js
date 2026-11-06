@@ -29,9 +29,9 @@ module.exports = async function hero(T) {
   for (let i = 0; i < 60 && d.posters.some(x => !x.t); i++) { await new Promise(r => setTimeout(r, 1000)); d = await api(); }
   check('every poster has a measured colour tone', d.posters.every(x => x.t && x.t.ar > 1), d.posters.filter(x => !x.t).length + ' unmeasured');
 
-  const VIEWS = [['desktop', { width: 1440, height: 900 }, [7, 8]], ['laptop', { width: 1280, height: 800 }, [7, 8]],
-    ['tablet', { width: 768, height: 1024 }, [6, 7]], ['mobile', { width: 390, height: 844, touch: true }, [5, 6]],
-    ['narrow phone', { width: 320, height: 640, touch: true }, [5, 6]]];
+  const VIEWS = [['desktop', { width: 1440, height: 900 }, [6, 7]], ['laptop', { width: 1280, height: 800 }, [6, 7]],
+    ['tablet', { width: 768, height: 1024 }, [5, 5]], ['mobile', { width: 390, height: 844, touch: true }, [5, 5]],
+    ['narrow phone', { width: 320, height: 640, touch: true }, [5, 5]]];
   for (const [name, vp, [lo, hi]] of VIEWS) {
     heading(`Hero collage — ${name} (${vp.width}px)`);
     const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: !!vp.touch, hasTouch: !!vp.touch });
@@ -65,6 +65,16 @@ module.exports = async function hero(T) {
     check('no poster covers the hero text or buttons', s.ps.every(p => s.text.every(t => !overlap(p.box, t))));
     check('WhatsApp button stays clear of the collage', !s.fab || s.ps.every(p => !overlap(p.box, s.fab)));
     check('every poster links to its set', s.ps.every(p => /^\/product\/[\w-]+$/.test(p.href)));
+    // first visit (fresh browser): a pink editorial mix from at least three sets
+    const sets = new Set(s.ps.map(p => p.href)).size;
+    check(`first visit is the pink collection (mood "${s.mood}", ${sets} different sets)`, s.mood === 'pink' && sets >= 3);
+    // compact: one connected cluster (every poster overlaps another), centred, no stray poster
+    const ov = s.ps.map((p, i) => s.ps.some((q, j) => j !== i && overlap(p.box, q.box)));
+    const bx = { l: Math.min(...s.ps.map(p => p.l)), r: Math.max(...s.ps.map(p => p.r)), t: Math.min(...s.ps.map(p => p.t)), b: Math.max(...s.ps.map(p => p.b)) };
+    const conn = (() => { const seen = new Set([0]), q = [0]; while (q.length) { const i = q.pop(); s.ps.forEach((p, j) => { if (!seen.has(j) && overlap(s.ps[i].box, p.box)) { seen.add(j); q.push(j); } }); } return seen.size; })();
+    check('compact cluster: every poster overlaps a neighbour, all connected, centred in the stage',
+      ov.every(Boolean) && conn === s.ps.length && Math.abs((bx.l + bx.r) / 2 - s.W / 2) < s.W * .04 && Math.abs((bx.t + bx.b) / 2 - s.H / 2) < s.H * .06,
+      JSON.stringify({ ov, conn, bx, W: s.W, H: s.H }));
     check(`no layout shift while it animates (CLS ${s.cls.toFixed(3)}) and the stage was reserved up front`, s.cls < .02 && s.early && Math.abs(s.early.stageH - s.stageH) < 1, JSON.stringify(s.early));
     check('headline and buttons are visible and clickable while the entrance plays', s.early && s.early.cta && s.early.h1 === '1');
     check('no sideways scroll', s.ov <= 1, String(s.ov));
@@ -109,7 +119,7 @@ module.exports = async function hero(T) {
     await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.hc-stage.hc-live', { timeout: 30000 });
     const r = await page.evaluate(() => [...document.querySelectorAll('.hc-p')].map(a => ({ u: a.dataset.u, ok: a.querySelector('img').naturalWidth > 0 })));
-    check('a failed image is swapped for a spare: full collage, no broken image', r.length >= 7 && r.every(x => x.ok) && !r.some(x => x.u === killed));
+    check('a failed image is swapped for a spare: full collage, no broken image', r.length >= 6 && r.every(x => x.ok) && !r.some(x => x.u === killed));
     await ctx.close();
   }
 
