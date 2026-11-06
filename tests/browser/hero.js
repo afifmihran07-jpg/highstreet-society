@@ -30,8 +30,8 @@ module.exports = async function hero(T) {
   check('every poster has a measured colour tone', d.posters.every(x => x.t && x.t.ar > 1), d.posters.filter(x => !x.t).length + ' unmeasured');
 
   const VIEWS = [['desktop', { width: 1440, height: 900 }, [6, 7]], ['laptop', { width: 1280, height: 800 }, [6, 7]],
-    ['tablet', { width: 768, height: 1024 }, [5, 5]], ['mobile', { width: 390, height: 844, touch: true }, [5, 5]],
-    ['narrow phone', { width: 320, height: 640, touch: true }, [5, 5]]];
+    ['tablet', { width: 768, height: 1024 }, [5, 5]], ['mobile', { width: 390, height: 844, touch: true }, [4, 5]],
+    ['narrow phone', { width: 320, height: 640, touch: true }, [4, 5]]];
   for (const [name, vp, [lo, hi]] of VIEWS) {
     heading(`Hero collage — ${name} (${vp.width}px)`);
     const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: !!vp.touch, hasTouch: !!vp.touch });
@@ -53,7 +53,7 @@ module.exports = async function hero(T) {
       const st = document.querySelector('.hc-stage'), R = r => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
       const ps = [...st.querySelectorAll('.hc-p')].map(a => { const im = a.querySelector('img'), f = a.querySelector('.hc-f');
         return { ok: im.complete && im.naturalWidth > 0, nat: im.naturalHeight / im.naturalWidth, shown: im.offsetHeight / im.offsetWidth, px: 1.5 / im.offsetWidth,
-          frame: f.offsetHeight - im.offsetHeight, l: a.offsetLeft, r: a.offsetLeft + a.offsetWidth, t: a.offsetTop, b: a.offsetTop + a.offsetHeight, box: R(a.getBoundingClientRect()), href: a.getAttribute('href') }; });
+          frame: f.offsetHeight - im.offsetHeight, l: a.offsetLeft, r: a.offsetLeft + a.offsetWidth, t: a.offsetTop, b: a.offsetTop + a.offsetHeight, box: R(a.getBoundingClientRect()), href: a.getAttribute('href'), u: a.dataset.u }; });
       const fab = document.getElementById('wafab');
       return { mood: st.dataset.mood, tpl: st.dataset.tpl, W: st.offsetWidth, H: st.offsetHeight, stageH: st.getBoundingClientRect().height, ps,
         text: [...document.querySelectorAll('.hero2-tx h1, .hero2-tx p, .hero2-tx .cta, .hero2-tx .pill, .hero2-kv')].map(e => R(e.getBoundingClientRect())),
@@ -72,6 +72,30 @@ module.exports = async function hero(T) {
     const ov = s.ps.map((p, i) => s.ps.some((q, j) => j !== i && overlap(p.box, q.box)));
     const bx = { l: Math.min(...s.ps.map(p => p.l)), r: Math.max(...s.ps.map(p => p.r)), t: Math.min(...s.ps.map(p => p.t)), b: Math.max(...s.ps.map(p => p.b)) };
     const conn = (() => { const seen = new Set([0]), q = [0]; while (q.length) { const i = q.pop(); s.ps.forEach((p, j) => { if (!seen.has(j) && overlap(s.ps[i].box, p.box)) { seen.add(j); q.push(j); } }); } return seen.size; })();
+    // every poster sufficiently visible, and no title band hidden (real hit-testing, rotation-aware)
+    const vis = await page.evaluate(() => [...document.querySelectorAll('.hc-p')].map(a => {
+      const r = a.getBoundingClientRect(), w = a.offsetWidth, h = a.offsetHeight;
+      const deg = parseFloat((a.style.transform.match(/rotate\(([-\d.]+)deg/) || [0, 0])[1]) * Math.PI / 180;
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      let n = 0, v = 0, tn = 0, tv = 0;
+      for (let u = -.45; u <= .45; u += .05) for (let y = -.47; y <= .47; y += .04) {
+        const lx = u * w, ly = y * h, X = cx + lx * Math.cos(deg) - ly * Math.sin(deg), Y = cy + lx * Math.sin(deg) + ly * Math.cos(deg);
+        const hit = document.elementFromPoint(X, Y), mine = !!(hit && hit.closest('.hc-p') === a);
+        n++; v += mine; if (y < -.24) { tn++; tv += mine; }
+      }
+      return { all: v / n, top: tv / tn };
+    }));
+    check(`every poster clearly visible: focal ${Math.round(vis[0].all * 100)}%, supports ≥ ${Math.round(Math.min(...vis.slice(1).map(x => x.all)) * 100)}%, title bands ≥ ${Math.round(Math.min(...vis.map(x => x.top)) * 100)}%`,
+      vis[0].all >= .97 && vis.slice(1).every(x => x.all >= .75) && vis.every(x => x.top >= .8), JSON.stringify(vis.map(x => [Math.round(x.all * 100), Math.round(x.top * 100)])));
+    {
+      const rose = t => t ? (t.rose != null ? t.rose : 0) : 0, by = {};
+      d.posters.forEach(x => { const a = by[x.id] || (by[x.id] = [0, 0]); a[0] += rose(x.t); a[1]++; });
+      const pinkSet = id => by[id] && by[id][0] / by[id][1] >= .3;
+      const guests = d.posters.filter(x => x.t && !pinkSet(x.id) && rose(x.t) >= .3 && (x.t.red || 0) < .1 && x.t.l > .35);
+      const urls = s.ps.map(p => p.u);
+      check(`first-visit pink mix reaches beyond the pink sets when the catalogue allows (${guests.length} eligible guest posters)`,
+        !guests.length || urls.some(u => guests.some(g => g.u === u)));
+    }
     check('compact cluster: every poster overlaps a neighbour, all connected, centred in the stage',
       ov.every(Boolean) && conn === s.ps.length && Math.abs((bx.l + bx.r) / 2 - s.W / 2) < s.W * .04 && Math.abs((bx.t + bx.b) / 2 - s.H / 2) < s.H * .06,
       JSON.stringify({ ov, conn, bx, W: s.W, H: s.H }));

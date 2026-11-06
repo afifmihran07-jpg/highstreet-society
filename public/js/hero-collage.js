@@ -23,38 +23,46 @@
 const H = window.HSS;
 if(!H) return;
 
-/* ---- layouts: COMPACT CLUSTERS, designed relative to the central poster.
-   Units: the anchor poster is 1 wide (about 1.41 tall); x/y are poster centres,
+/* ---- layouts: COMPACT CLUSTERS, designed relative to the focal poster.
+   Units: the focal poster is 1 wide (about 1.41 tall); x/y are poster centres,
    s = width, r = rotation (deg), z = depth 1 (back) to 3 (front).
-   Supports tuck under the anchor's edges (about 15-30 % overlap) so the group
-   reads as one editorial collage. The whole cluster is then fitted to the
-   stage from the posters' REAL proportions and rotations, and centred
-   (see cluster()), so posters of any shape keep the same compact shape.
-   Slot 0 is the anchor; later slots run round the anchor so consecutive
-   ones are neighbours (the composer alternates light/dark along them). ---- */
+   Art direction rules (checked by tests/browser/hero.js):
+   - the focal print leads but does not dominate: supports are 0.70-0.86 of its width;
+   - overlaps are natural but light: every support stays at least ~80 % visible
+     and LOWER posters sit in front, so overlaps hide bottoms and sides, never a
+     poster's title band; the focal print is never covered;
+   - the group is one connected cluster with no stray posters.
+   The cluster is fitted and centred from the posters' REAL proportions and
+   rotations (cluster()), so any artwork shape keeps the compact shape.
+   Each screen size has its own set: desktop, tablet and phone. Slot 0 is the focal
+   print; later slots run round it (the composer alternates light/dark along them). ---- */
 const C = (x, y, s, r, z) => ({ x, y, s, r, z });
-const WIDE = {   // desktop (> 860 px): 6-7 posters
-  halo:    [C(0, 0, 1, -2, 3), C(-.68, -.36, .72, -5, 2), C(.70, -.44, .68, 4, 2), C(1.16, -.02, .52, 7, 1),
-            C(.66, .44, .72, -3, 2), C(-.62, .48, .66, 4, 2), C(-1.14, .06, .54, -8, 1)],
-  cascade: [C(.22, 0, 1, 2, 3), C(-.52, -.40, .74, -4, 2), C(.88, -.42, .62, 6, 2), C(.86, .48, .58, -5, 2),
-            C(-.48, .50, .70, 3, 2), C(-1.0, .66, .46, 6, 1), C(-1.08, -.06, .58, -7, 1)],
-  duet:    [C(-.30, -.04, .96, -3, 3), C(.42, .08, .90, 3, 3), C(1.0, -.20, .58, 6, 2), C(.96, .58, .50, -5, 2),
-            C(-.80, .55, .52, 5, 2), C(-.92, -.26, .60, -6, 1)]
+const DESK = {   // desktop (> 860 px; stage 1.47 : 1): 6 posters
+  gallery: [C(0, -.02, 1, -1.5, 3), C(-.84, .58, .82, 3, 2), C(.88, .6, .8, -2, 2), C(.88, -.46, .86, 2.5, 2), C(-.86, -.44, .84, -3, 2), C(1.62, .06, .7, 4, 1)],
+  brick:   [C(0, .36, 1, -1.5, 3), C(-.92, .44, .84, -3, 2), C(.92, .42, .84, 3, 2), C(.5, -.74, .82, -2.5, 2), C(-.48, -.72, .82, 2, 2), C(1.42, -.6, .7, 4, 1)],
+  offset:  [C(-.26, 0, 1, 2, 3), C(.62, .58, .8, 3, 2), C(.6, -.5, .82, -2, 2), C(1.36, .04, .74, 4, 1), C(-1.12, .48, .78, -4, 2), C(-1.1, -.48, .76, -3, 2)]
 };
-const NARROW = { // tablet + phones (<= 860 px): 5 posters, a tighter dedicated cluster
-  halo:    [C(0, 0, 1, -2, 3), C(-.66, -.22, .74, -6, 2), C(.68, -.20, .72, 6, 2), C(.56, .50, .58, -4, 2), C(-.56, .52, .56, 4, 2)],
-  fan:     [C(0, 0, 1, 0, 3), C(-.60, .06, .82, -6, 2), C(.60, .06, .82, 6, 2), C(1.06, .14, .64, 11, 1), C(-1.06, .14, .64, -11, 1)],
-  duet:    [C(-.30, -.04, .96, -3, 3), C(.42, .08, .90, 3, 3), C(1.0, -.10, .60, 6, 2), C(-.80, .52, .52, 5, 2), C(-.92, -.28, .56, -6, 1)]
+const TAB = {   // tablet (601-860 px; stage 1.6 : 1): 5 posters in one overlapping band
+  row:     [C(0, 0, 1, -1, 3), C(-.8, .08, .86, -4, 2), C(.8, .06, .86, 4, 2), C(1.48, .18, .72, 7, 1), C(-1.48, .18, .72, -7, 1)],
+  arc:     [C(0, -.08, 1, 0, 3), C(-.78, .02, .88, -6, 2), C(.78, .02, .88, 6, 2), C(1.44, .22, .74, 11, 1), C(-1.44, .22, .74, -11, 1)],
+  stair:   [C(-.1, -.04, 1, -2, 3), C(.76, -.1, .86, 3, 2), C(1.42, .06, .7, 6, 1), C(-.92, .1, .84, -4, 2), C(-1.56, .16, .66, -7, 1)]
+};
+const PHONE = {   // phones (<= 600 px; short, wide stage 1.75 : 1): 4-5 posters
+  row:     [C(0, 0, 1, -1, 3), C(-.8, .08, .86, -4.5, 2), C(.8, .06, .86, 4.5, 2), C(1.46, .18, .72, 8, 1), C(-1.46, .18, .72, -8, 1)],
+  duo:     [C(-.42, -.02, 1, -3, 3), C(.46, .04, .96, 3, 3), C(1.24, .1, .76, 6, 2), C(-1.22, .12, .76, -6, 2)],
+  stair:   [C(-.1, -.04, 1, -2, 3), C(.76, -.1, .86, 3, 2), C(1.42, .06, .7, 6, 1), C(-.92, .1, .84, -4, 2), C(-1.56, .16, .66, -7, 1)]
 };
 
 /* ---- moods: fit(tone, poster) → 0…1; a mood is only used when enough
    posters pass `min`. Tones come from the server; null until measured. ---- */
 const clamp = x => Math.max(0, Math.min(1, x));
+// genuine pink (server "rose"); older tone records without it fall back to a damped "pink"
+const roseOf = t => t ? (t.rose != null ? t.rose : t.pink * .6) : 0;
 const SPORT = /foot|motor|sport|f1|formula|cricket|racing|basket|nba|ufc|tennis/i;
 const MOODS = {
   // pastel/editorial pink: pink AND light (keeps deep reds out)
   // (after the first visit pink is one mood among many, not the permanent theme)
-  pink:  { w: .6,  cap: 3, min: .55, fit: t => t ? clamp(t.pink * 1.9 * (t.l > .52 ? 1 : t.l > .42 ? .6 : .25)) : 0 },
+  pink:  { w: .6,  cap: 3, min: .55, fit: t => t ? clamp(roseOf(t) * 1.9 * (t.l > .52 ? 1 : t.l > .42 ? .6 : .25) - ((t.red || 0) > .1 ? .4 : 0)) : 0 },
   noir:  { w: 1,   cap: 3, min: .55, fit: t => t ? clamp(t.dark * 1.25 + (.42 - t.l) * .9 - Math.max(0, t.c - .3)) : 0 },
   pop:   { w: 1,   cap: 3, min: .3,  fit: t => t ? clamp((t.c - .1) * 3.3) : 0 },
   mono:  { w: .5,  cap: 3, min: .7,  fit: t => t ? clamp(1 - (t.c - .03) * 7) : 0 },
@@ -76,14 +84,20 @@ function compose(posters, cats, n, skipFirst){
   posters.forEach(p => { p.sport = p.cats.some(c => SPORT.test(cats[c] || c)); });
   const first = !skipFirst && !(mem.r && mem.r.length);
   const moods = [];
-  // pink-leaning categories, found from the measured tones (average pinkness), never hard-coded
-  const pc = {};
-  posters.forEach(p => p.t && p.cats.forEach(c => { const a = pc[c] || (pc[c] = [0, 0]); a[0] += p.t.pink; a[1]++; }));
-  const pinkCats = Object.keys(pc).filter(c => pc[c][0] / pc[c][1] >= .3);
+  // pink-leaning categories and sets, found from the measured "rose" tone
+  // (genuine pink/blush, not saturated red), never hard-coded
+  const avg = key => { const a = {}; posters.forEach(p => p.t && [].concat(key(p)).forEach(k => { const v = a[k] || (a[k] = [0, 0]); v[0] += roseOf(p.t); v[1]++; }));
+    return k => a[k] ? a[k][0] / a[k][1] : 0; };
+  const catRose = avg(p => p.cats), setRose = avg(p => p.id);
+  const pinkCats = Object.keys(cats).filter(c => catRose(c) >= .3);
   if (first) {
-    // FIRST VISIT: a pink editorial collection: posters pink AND fairly light, at least 3 sets mixed
-    moods.push({ id: 'pink', w: 1, cap: Math.max(2, Math.ceil(n / 3)), min: .5, sets: 3,
-      fit: (t, p) => t ? clamp(t.pink * 1.5 * (t.l > .45 ? 1 : .5) + (p.cats.some(c => pinkCats.includes(c)) ? .35 : 0) - (t.dark > .4 ? .3 : 0)) : 0 });
+    // FIRST VISIT: a pink editorial collection: genuinely pink and fairly light,
+    // at most 2 per set (so 3+ sets mix), red/dark artwork kept out. A "guest":
+    // a clearly pink poster from a set that is NOT a pink set, joins when one exists.
+    const guest = p => p.t && setRose(p.id) < .3 && roseOf(p.t) >= .3 && (p.t.red || 0) < .1 && p.t.l > .35;
+    moods.push({ id: 'pink', w: 1, cap: 2, min: .45, sets: 3, guest,
+      fit: (t, p) => t ? clamp(roseOf(t) * 1.5 * (t.l > .45 ? 1 : .6) + (setRose(p.id) >= .3 ? .2 : 0)
+        - ((t.red || 0) > .1 ? .4 : 0) - (t.dark > .4 ? .3 : 0)) : 0 });
   } else {
     Object.entries(MOODS).forEach(([id, m]) => moods.push({ id, ...m }));
     Object.keys(cats).forEach(c => moods.push({ id: 'cat:' + c, w: CAT_W, pinkish: pinkCats.includes(c), cap: 3, min: .5, fit: (t, p) => p.cats.includes(c) ? 1 : 0 }));
@@ -94,7 +108,9 @@ function compose(posters, cats, n, skipFirst){
     const perSet = {}; pool.forEach(x => { perSet[x.p.id] = Math.min(m.cap, (perSet[x.p.id] || 0) + 1); });
     const room = Object.values(perSet).reduce((a, b) => a + b, 0), sets = Object.keys(perSet).length;
     const ok = room >= n && sets >= (m.sets || 1);
-    return { ...m, pool, w: ok ? m.w * (lastMoods[0] === m.id ? 0 : lastMoods.includes(m.id) || (m.pinkish && lastMoods.includes('pink')) ? .35 : 1) : 0 };
+    // pink is the FIRST impression: after a pink visit it rests for the next 3 visits
+    const rest = lastMoods[0] === m.id || (m.id === 'pink' && lastMoods.includes('pink'));
+    return { ...m, pool, w: ok ? m.w * (rest ? 0 : lastMoods.includes(m.id) || (m.pinkish && lastMoods.includes('pink')) ? .35 : 1) : 0 };
   }).filter(m => m.w > 0);
   if (!eligible.length) return first ? compose(posters, cats, n, true) : null;
   const sigs = mem.s || [];
@@ -103,7 +119,9 @@ function compose(posters, cats, n, skipFirst){
     const m = pickWeighted(eligible);
     // curated, not random: a seed poster sets the tone; the rest are ranked by
     // mood fit + closeness in lightness and hue to the seed, minus recent use
-    const base = x => x.f * .5 + rnd() * .4 - (recent.has(x.p.u) ? .7 / recent.get(x.p.u) : 0);
+    // ...and, in other moods, strongly pink posters step back too while pink is recent
+    const pinkRest = m.id !== 'pink' && lastMoods.includes('pink');
+    const base = x => x.f * .5 + rnd() * .4 - (recent.has(x.p.u) ? .7 / recent.get(x.p.u) : 0) - (pinkRest && roseOf(x.p.t) >= .3 ? .45 : 0);
     const seed = m.pool.map(x => ({ x, s: base(x) })).sort((a, b) => b.s - a.s)[0].x, st = seed.p.t;
     const harm = t => { if (!st || !t) return .5; let h = 1 - Math.min(1, Math.abs(t.l - st.l) * 1.8);
       if (st.c > .12 && t.c > .12 && st.h != null && t.h != null) { const dh = Math.abs(t.h - st.h) % 360; h -= Math.min(dh, 360 - dh) / 180 * .6; }
@@ -113,6 +131,11 @@ function compose(posters, cats, n, skipFirst){
     for (const x of ranked) {
       if ((used[x.p.id] || 0) >= m.cap) { spare.push(x); continue; }
       if (pick.length < n) { pick.push(x); used[x.p.id] = (used[x.p.id] || 0) + 1; } else spare.push(x);
+    }
+    // the first-visit pink mix welcomes one "guest" from outside the pink sets when one exists
+    if (m.guest && pick.length > 2 && !pick.some(x => m.guest(x.p))) {
+      const gp = posters.filter(m.guest).sort((a, b) => roseOf(b.t) - roseOf(a.t) + (rnd() - .5) * .1)[0];
+      if (gp) { spare.unshift(pick.pop()); pick.push({ p: gp, f: .5 }); }
     }
     const sig = pick.map(x => x.p.u).sort().join('|');
     best = { mood: m.id, pick, spare: spare.slice(0, 4).map(x => x.p), sig };
@@ -164,7 +187,7 @@ function mount(art, dataPromise, fallback){
   Promise.resolve(dataPromise).then(async d => {
     const posters = (d && d.posters || []).filter(p => p && p.u);
     // desktop gets the 6-7 poster clusters; tablet and phones their own 5-poster ones
-    const lib = innerWidth > 860 ? WIDE : NARROW;
+    const lib = innerWidth > 860 ? DESK : innerWidth > 600 ? TAB : PHONE;
     const tplIds = Object.keys(lib).filter(k => k !== mem.t);
     const tpl = tplIds[Math.floor(rnd() * tplIds.length)];
     const n = Math.min(lib[tpl].length, posters.length);

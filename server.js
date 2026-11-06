@@ -1770,7 +1770,7 @@ app.get('/img', async (req,res)=>{
    Until measured a poster has t:null and still joins mixed/category moods.
    Artwork is only read, never changed. Read-only endpoint; no schema change. */
 const HERO_W = 400;
-const TONE_FILE = path.join(IMG_CACHE_DIR, 'hero-tones-v1.json');
+const TONE_FILE = path.join(IMG_CACHE_DIR, 'hero-tones-v2.json');
 let heroTones = {};
 try{ heroTones = JSON.parse(fs.readFileSync(TONE_FILE, 'utf8')) || {}; }catch(_){}
 const toneQueue = new Set();
@@ -1799,7 +1799,7 @@ async function measureTone(u){
   const sharp = require('sharp');
   const meta = await sharp(src).metadata();
   const { data } = await sharp(src).resize(24, 34, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-  let n = 0, L = 0, C = 0, pink = 0, dark = 0, light = 0, warm = 0, cw = 0, hx = 0, hy = 0;
+  let n = 0, L = 0, C = 0, pink = 0, rose = 0, red = 0, dark = 0, light = 0, warm = 0, cw = 0, hx = 0, hy = 0;
   for(let i = 0; i < data.length; i += 3){
     const r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn, l = (mx + mn) / 2;
@@ -1810,6 +1810,9 @@ async function measureTone(u){
     if(l < .22) dark++;
     if(l > .78) light++;
     if(c > .1 && (h >= 290 || h <= 12) && l > .3) pink++;
+    // rose = genuinely pink (magenta-pink, or light red = blush); red = saturated red, NOT pink
+    if(c > .06 && l > .35 && ((h >= 300 && h < 350) || ((h >= 350 || h <= 15) && l > .62))) rose++;
+    if(c > .3 && (h >= 350 || h <= 15) && l <= .62) red++;
     if(c > .12){ const wgt = c * c; cw += wgt; hx += Math.cos(h * Math.PI / 180) * wgt; hy += Math.sin(h * Math.PI / 180) * wgt;
       if(h <= 70 || h >= 330) warm += wgt; }
   }
@@ -1819,7 +1822,7 @@ async function measureTone(u){
     h: cw ? Math.round(hue) : null,                       // dominant hue (colour-weighted)
     hc: r3(cw ? Math.hypot(hx, hy) / cw : 0),             // how concentrated that hue is
     l: r3(L / n), c: r3(C / n),                           // mean lightness / colourfulness
-    pink: r3(pink / n), dark: r3(dark / n), light: r3(light / n), warm: r3(cw ? warm / cw : 0) };
+    pink: r3(pink / n), rose: r3(rose / n), red: r3(red / n), dark: r3(dark / n), light: r3(light / n), warm: r3(cw ? warm / cw : 0) };
 }
 function saveTones(){
   const keep = new Set(); db.products.forEach(p => posterImages(p).forEach(u => keep.add(u)));
