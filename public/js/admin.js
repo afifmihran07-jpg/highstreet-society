@@ -38,7 +38,7 @@ function loginView(reason, prefillUser){
   AUTH.shellMounted = false;
   setAnon();
   root.innerHTML=`<div class="loginbox"><div class="panel">
-    <img src="/images/logo.png" alt="HSS"><h1 style="font-size:22px">HSS ADMIN</h1>
+    <img src="/images/logo-240.webp" alt="HSS"><h1 style="font-size:22px">HSS ADMIN</h1>
     <p class="asub">Manage your poster business</p>
     ${reason?`<p class="asub" style="color:var(--gold,#FBBF24);margin-top:-4px">${esc(reason)}</p>`:''}
     <div class="fld" style="text-align:left"><label>Username</label><input id="u" autocomplete="username" value="${esc(prefillUser||'')}"></div>
@@ -137,7 +137,7 @@ function shell(force){
   const C=counts();
   root.innerHTML=`<div class="adm">
     <aside class="aside" id="aside">
-      <a class="logo" href="/" style="margin:0 8px 18px"><img src="/images/logo.png" alt=""><span>HIGH STREET<br><small>SOCIETY • EST. 2025</small></span></a>
+      <a class="logo" href="/" style="margin:0 8px 18px"><img src="/images/logo-240.webp" alt=""><span>HIGH STREET<br><small>SOCIETY • EST. 2025</small></span></a>
       <nav class="anav">${NAV.map(n=>`<button class="${A.tab===n[0]?'on':''}" onclick="GOTAB('${n[0]}')">${n[1]}${n[2]&&C[n[2]]?`<span class="n">${C[n[2]]}</span>`:''}</button>`).join('')}</nav>
       <div class="afoot">
         <button onclick="window.open('/','_blank')">◉ View Live Store</button>
@@ -214,7 +214,7 @@ async function boot(gen){
 
   if(!reachable){
     root.innerHTML=`<div class="loginbox"><div class="panel">
-      <img src="/images/logo.png" alt="HSS">
+      <img src="/images/logo-240.webp" alt="HSS">
       <h1 style="font-size:20px">Cannot reach the server</h1>
       <p class="asub">Please check your connection.</p>
       <button class="abtn lime" style="margin-top:12px" onclick="location.reload()">Retry</button>
@@ -306,7 +306,7 @@ async function vDash(pane){
       <div style="margin-top:12px"><button class="abtn ghost sm" onclick="GOTAB('orders')">All orders →</button></div>
     </div>
     <div class="panel"><h2>Top sets by sales</h2>
-      ${s.top.map(p=>`<div class="sumrow"><span style="display:flex;gap:10px;align-items:center"><img src="${esc(p.cover)}" class="athumb" style="width:38px;height:46px" onerror="this.src='/images/logo.png'">${esc(p.name)}</span><span>${p.sold} sold • ${p.views} views</span></div>`).join('')}
+      ${s.top.map(p=>`<div class="sumrow"><span style="display:flex;gap:10px;align-items:center"><img src="${esc(p.cover)}" class="athumb" style="width:38px;height:46px" onerror="this.src='/images/logo-240.webp'">${esc(p.name)}</span><span>${p.sold} sold • ${p.views} views</span></div>`).join('')}
     </div>
   </div>
   ${s.lowStock.length?`<div class="panel" style="margin-top:16px"><h2>⚠️ Low stock</h2><div class="arow">${s.lowStock.map(p=>`<span class="apill y">${esc(p.name)} — ${p.stock} left</span>`).join('')}</div></div>`:''}`;
@@ -332,7 +332,7 @@ async function vOrders(pane){
       <span style="font-size:13px;color:var(--mut)">📍 ${esc(o.customer.fullAddress||o.customer.address)}</span><br>
       <span style="font-size:13px;color:var(--mut)">${o.coupon?'🎟️ '+esc(o.coupon)+' • ':''}${o.trxId?'TrxID: <b style="color:var(--lime)">'+esc(o.trxId)+'</b> • ':''}<a href="tel:${esc(o.customer.mobile)}">Call</a> • <a href="https://wa.me/${H.waNumber(o.customer.mobile)}" target="_blank" rel="noopener">WhatsApp</a></span></div>
       <div style="text-align:right">${H.statusPill(o.status)}<br><span class="apill" style="margin-top:6px">${o.paymentMethod.toUpperCase()} • ${esc(o.paymentStatus)}</span><br><b style="font-size:19px">${money(o.total)}</b></div></div>
-      <div class="oitems">${o.items.map(i=>`<img src="${esc(i.cover)}" title="${esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo.png'">`).join('')}</div>
+      <div class="oitems">${o.items.map(i=>`<img src="${esc(i.cover)}" title="${esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo-240.webp'">`).join('')}</div>
       <div class="oline">${o.items.map(i=>`<div class="olrow"><span>${esc(i.name)}${i.size?` <b class="szchip">${esc(i.size)}</b>`:''} × ${i.qty}</span><b>${money(i.price*i.qty)}</b></div>`).join('')}
         <div class="olrow"><span>Subtotal</span><b>${money(o.subtotal)}</b></div>
         ${o.discount?`<div class="olrow"><span>Discount</span><b>−${money(o.discount)}</b></div>`:''}
@@ -388,7 +388,7 @@ async function vProducts(pane){
     const list=A.products.filter(p=>(p.name+p.sku+p.setNo).toLowerCase().includes(f.toLowerCase()));
     document.getElementById('rows').innerHTML=list.map(p=>`<tr>
       <td><input type="checkbox" class="psel" value="${p.id}" ${SEL.has(p.id)?'checked':''} style="width:auto" aria-label="select ${esc(p.name)}"></td>
-      <td><img src="${esc(p.cover)}" class="athumb" onerror="this.src='/images/logo.png'"></td>
+      <td><img src="${esc(p.cover)}" class="athumb" onerror="this.src='/images/logo-240.webp'"></td>
       <td><b>${esc(p.name)}</b><br><span style="color:var(--dim);font-size:12.5px">SET ${esc(p.setNo)} • ${esc(p.sku||'')} • ${(p.posters||[]).length} posters</span></td>
       <td><b>${money(p.effPrice)}</b>${p.salePrice?`<br><s style="color:var(--dim);font-size:12px">${money(p.price)}</s>`:''}</td>
       <td><b style="color:${p.stock===0?'var(--danger)':p.stock<=5?'var(--gold)':'var(--ok)'}">${p.stock}</b></td>
@@ -691,10 +691,10 @@ async function vHome(pane){
   document.getElementById('h_imgf').onchange=async e=>{ if(!e.target.files.length)return; try{const u=await uploadFiles(e.target.files);document.getElementById('h_img').value=u[0];toast('Uploaded',true);}catch(err){toast(err.message);} };
   ['featured','news','best'].forEach(k=>{
     const drawAv=q=>{ document.getElementById('av_'+k).innerHTML=A.products.filter(p=>!S[k].includes(p.id)&&(!q||p.name.toLowerCase().includes(q.toLowerCase()))).slice(0,30).map(p=>`
-      <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo.png'"><b>${esc(p.name)}${p.published?'':' (hidden)'}</b><button onclick="HADD('${k}','${p.id}')">+ Add</button></div>`).join('')||'<p style="color:var(--dim);font-size:13px">No more sets.</p>'; };
+      <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo-240.webp'"><b>${esc(p.name)}${p.published?'':' (hidden)'}</b><button onclick="HADD('${k}','${p.id}')">+ Add</button></div>`).join('')||'<p style="color:var(--dim);font-size:13px">No more sets.</p>'; };
     const drawCh=()=>{ document.getElementById('cnt_'+k).textContent='('+S[k].length+')';
       document.getElementById('ch_'+k).innerHTML=S[k].map((id,i)=>{const p=byId[id];if(!p)return '';return `
-      <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo.png'"><b>${esc(p.name)}</b><button onclick="HMV('${k}',${i},-1)">↑</button><button onclick="HMV('${k}',${i},1)">↓</button><button onclick="HRM('${k}','${id}')">✕</button></div>`;}).join('')||'<p style="color:var(--dim);font-size:13px">Empty — add sets from the left.</p>'; };
+      <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo-240.webp'"><b>${esc(p.name)}</b><button onclick="HMV('${k}',${i},-1)">↑</button><button onclick="HMV('${k}',${i},1)">↓</button><button onclick="HRM('${k}','${id}')">✕</button></div>`;}).join('')||'<p style="color:var(--dim);font-size:13px">Empty — add sets from the left.</p>'; };
     drawAv(''); drawCh();
     document.getElementById('q_'+k).oninput=e=>drawAv(e.target.value);
     window.HADD=(kk,id)=>{S[kk].push(id);vHomeRefresh();};
@@ -704,10 +704,10 @@ async function vHome(pane){
       ['featured','news','best'].forEach(k2=>{ const q=document.getElementById('q_'+k2).value;
         document.getElementById('av_'+k2); drawAvK(k2,q); drawChK(k2); });
       function drawAvK(k2,q){ document.getElementById('av_'+k2).innerHTML=A.products.filter(p=>!S[k2].includes(p.id)&&(!q||p.name.toLowerCase().includes(q.toLowerCase()))).slice(0,30).map(p=>`
-        <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo.png'"><b>${esc(p.name)}</b><button onclick="HADD('${k2}','${p.id}')">+ Add</button></div>`).join('')||'<p style="color:var(--dim);font-size:13px">No more sets.</p>'; }
+        <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo-240.webp'"><b>${esc(p.name)}</b><button onclick="HADD('${k2}','${p.id}')">+ Add</button></div>`).join('')||'<p style="color:var(--dim);font-size:13px">No more sets.</p>'; }
       function drawChK(k2){ document.getElementById('cnt_'+k2).textContent='('+S[k2].length+')';
         document.getElementById('ch_'+k2).innerHTML=S[k2].map((id,i)=>{const p=byId[id];if(!p)return '';return `
-        <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo.png'"><b>${esc(p.name)}</b><button onclick="HMV('${k2}',${i},-1)">↑</button><button onclick="HMV('${k2}',${i},1)">↓</button><button onclick="HRM('${k2}','${id}')">✕</button></div>`;}).join('')||'<p style="color:var(--dim);font-size:13px">Empty.</p>'; }
+        <div class="pickitem"><img src="${esc(p.cover)}" onerror="this.src='/images/logo-240.webp'"><b>${esc(p.name)}</b><button onclick="HMV('${k2}',${i},-1)">↑</button><button onclick="HMV('${k2}',${i},1)">↓</button><button onclick="HRM('${k2}','${id}')">✕</button></div>`;}).join('')||'<p style="color:var(--dim);font-size:13px">Empty.</p>'; }
     };
   });
   const g=id=>document.getElementById(id);
@@ -1178,7 +1178,7 @@ async function run(){
 // Show a neutral loading state while the session is verified, so the login
 // form never flashes for an already-authenticated admin on refresh.
 root.innerHTML=`<div class="loginbox"><div class="panel">
-  <img src="/images/logo.png" alt="HSS" style="opacity:.8">
+  <img src="/images/logo-240.webp" alt="HSS" style="opacity:.8">
   <p class="asub" style="margin-top:12px">Checking your session…</p></div></div>`;
 boot();
 })();

@@ -1190,3 +1190,209 @@ body.g3d-lb-open{overflow:hidden}
 /* WhatsApp button glides clear of the open exhibition caption (homepage only) */
 body.g3d-wa .wafab{transition:transform .22s ease,translate .45s cubic-bezier(.16,1,.3,1)}
 @media (prefers-reduced-motion:reduce){body.g3d-wa .wafab{transition:none}}
+
+/* ---------- Layout stability (no jumps while content loads) ----------
+   Pages paint their header/footer before the data arrives. Reserve the space
+   so the footer never sits high on the screen and then jumps down. */
+header.site{min-height:69px}
+main#content:empty,
+#content > .empty:only-child,
+#content > .wrap:only-child > .empty:only-child{min-height:calc(100vh - 110px)}
+.shophead #count{min-height:1.6em}
+#catchips:empty{min-height:42px}
+#grid:empty{min-height:100vh}
+.shophead .catdesc:empty{min-height:1.5em}
+#grid > .empty:only-child{min-height:100vh}
+#sum:empty{min-height:260px}
+
+/* ---------- Artwork-first product cards: the set's six posters as a small gallery wall ---------- */
+.card-wall .ph{aspect-ratio:1/1;background:
+  radial-gradient(90% 70% at 50% 35%,rgba(139,92,246,.10),transparent 70%),
+  linear-gradient(180deg,#14121c,#0f0e15)}
+.pwall{position:absolute;inset:0;padding:0 8%;display:grid;grid-template-columns:repeat(3,1fr);column-gap:3.2%;row-gap:3.2%;align-content:center}
+.pw{position:relative;display:block;aspect-ratio:210/297;background:#1b1a23;border-radius:2px;overflow:hidden;
+  box-shadow:0 6px 14px -6px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.05);
+  transition:transform .55s cubic-bezier(.16,1,.3,1),box-shadow .55s cubic-bezier(.16,1,.3,1);transition-delay:calc(var(--i) * 25ms)}
+.pw img{display:block;width:100%;height:100%;object-fit:contain}
+.pw.miss img{visibility:hidden}
+.card-wall .ph img{transition:none}
+.card-wall:hover .ph img{transform:none}
+@media (hover:hover) and (pointer:fine){
+  .card-wall:hover{transform:none}
+  .card-wall:hover .pw{transform:translateY(-3px);box-shadow:0 12px 22px -8px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.08)}
+}
+@media (prefers-reduced-motion:reduce){.pw{transition:none}}
+/* quieter, consistent tags */
+.ptag{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:99px;
+  background:rgba(11,11,15,.72);color:var(--ink);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(6px)}
+.ptag.off{background:rgba(11,11,15,.72);color:var(--lime);border-color:rgba(215,255,62,.45)}
+.ptag.new{background:var(--lime);color:#0B0B0F;border-color:var(--lime)}
+.ptag.best{background:rgba(11,11,15,.72);color:var(--pink);border-color:rgba(244,114,182,.5)}
+.ptag.out{background:#2a2a33;color:#d4d4d8;border-color:#2a2a33}
+
+/* ---------- Product gallery: set view first, every poster shown whole ---------- */
+.gmain{background:radial-gradient(90% 70% at 50% 35%,rgba(139,92,246,.10),transparent 70%),linear-gradient(180deg,#14121c,#0f0e15)}
+.gview{position:absolute;inset:0;display:grid;place-items:center}
+.gview.swap{animation:gswap .45s cubic-bezier(.16,1,.3,1)}
+@keyframes gswap{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
+.gmain .gview > img{width:100%;height:100%;object-fit:contain;padding:4%;filter:drop-shadow(0 18px 30px rgba(0,0,0,.6))}
+.gmain.is-set{cursor:default}
+.gset{width:100%;height:100%;padding:9% 7%;display:grid;grid-template-columns:repeat(3,1fr);gap:3.4%;align-content:center}
+.gsp{display:block;padding:0;border:0;background:#1b1a23;aspect-ratio:210/297;border-radius:2px;overflow:hidden;cursor:zoom-in;
+  box-shadow:0 10px 22px -10px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.06);transition:transform .45s cubic-bezier(.16,1,.3,1),box-shadow .45s}
+.gsp img{display:block;width:100%;height:100%;object-fit:contain}
+.gsp:hover,.gsp:focus-visible{transform:translateY(-4px);box-shadow:0 18px 30px -12px rgba(0,0,0,.9),0 0 0 1px rgba(215,255,62,.5);outline:none}
+.gthumbs.with-set{grid-template-columns:repeat(8,1fr)}
+.gthumbs button{background:#14121c}
+.gthumbs img{object-fit:contain}
+.gthumbs .tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:12% 8%;width:100%;height:100%;align-content:center}
+.gthumbs .tgrid img{aspect-ratio:210/297;width:100%;height:auto;object-fit:cover}
+@media (max-width:700px){
+  .gthumbs.with-set{display:flex;overflow-x:auto;gap:8px;scrollbar-width:none;padding-bottom:2px}
+  .gthumbs.with-set::-webkit-scrollbar{display:none}
+  .gthumbs.with-set button{flex:0 0 58px}
+}
+@media (prefers-reduced-motion:reduce){.gview.swap{animation:none}.gsp{transition:none}}
+/* artwork-first cards: nothing sits on the art — tag beside the set number, heart in the text area */
+.pwall,.gset{grid-template-columns:repeat(3,minmax(0,1fr))}
+.gsp img,.pw img{max-width:100%}
+.gmain.is-set .gset{padding:9% 11%}
+.card-wall .setno{display:flex;align-items:center;gap:8px;min-height:22px}
+.card-wall .setno .ptag{font-size:9.5px;padding:3px 8px;letter-spacing:.05em}
+.card-wall .wish{top:10px;right:10px;width:34px;height:34px;background:transparent;border-color:rgba(255,255,255,.12);backdrop-filter:none}
+.card-wall .wish svg{width:16px;height:16px}
+.card-wall .pb{position:relative}
+.pdp > *{min-width:0}
+@media (max-width:700px){.gmain.is-set .gnav{display:none}}
+
+/* =====================================================================
+   HSS design system (storefront) — one button system, one icon style,
+   a calmer type scale. Purple / black / neon-lime identity unchanged.
+   ===================================================================== */
+:root{--dim:#8A86A0}            /* secondary text: 4.6:1 on the background (was 3.8:1) */
+
+/* Buttons: primary (lime) → the one main action; secondary (outline); quiet (text/icon) */
+.btn{gap:8px;padding:13px 24px;font-weight:700;font-size:14.5px;letter-spacing:.005em;
+  transition:background-color .2s ease,border-color .2s ease,color .2s ease,box-shadow .25s ease,filter .2s ease}
+.btn-lime{background:var(--lime);color:#0B0B0F}
+.btn-lime:hover{transform:none;filter:brightness(1.05);box-shadow:0 10px 28px -10px rgba(215,255,62,.45)}
+.btn-ghost,.btn-dark,.btn-brand{background:transparent;color:var(--ink);border:1px solid rgba(255,255,255,.18)}
+.btn-ghost:hover,.btn-dark:hover,.btn-brand:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.4)}
+.btn-quiet{background:transparent;color:var(--mut);border:1px solid transparent;padding:13px 16px}
+.btn-quiet:hover{color:var(--ink)}
+.btn svg{width:18px;height:18px;flex-shrink:0}
+.iconbtn.on{color:var(--pink)}
+.iconbtn.on svg{fill:currentColor}
+.btn:focus-visible,.addbtn:focus-visible,.chip:focus-visible,.wish:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.btn-sm{padding:9px 16px;font-size:13px}
+.wishrow{grid-template-columns:1fr auto}
+.addbtn{font-size:12.5px;font-weight:700;letter-spacing:.01em;padding:8px 14px;background:transparent;color:var(--lime);border:1px solid rgba(215,255,62,.4)}
+.addbtn:hover{background:var(--lime);color:#0B0B0F}
+
+/* Icons in empty states / contact rows */
+.eico{display:inline-grid;place-items:center;width:56px;height:56px;border-radius:50%;color:var(--lime);
+  background:rgba(215,255,62,.06);border:1px solid rgba(215,255,62,.22)}
+.eico svg{width:26px;height:26px}
+.empty .e{font-size:0;line-height:0}
+.ci{display:inline-flex;align-items:center;gap:10px}
+.ci svg{width:18px;height:18px;color:var(--mut)}
+.promoline svg{width:14px;height:14px;vertical-align:-2px;margin-right:4px}
+
+/* Calmer type on cards and product info */
+.card .pb{gap:5px;padding:14px 16px 16px}
+.card .setno{font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--dim)}
+.card h3{font-size:15.5px;font-weight:700;letter-spacing:.005em}
+.card .meta{font-size:12.5px;color:var(--dim)}
+.price{font-size:16px;font-weight:700}
+.price s{font-size:13px;font-weight:500;color:var(--dim)}
+.card:hover{transform:none;border-color:rgba(255,255,255,.16);box-shadow:none}
+.pinfo .setno{letter-spacing:.14em;font-size:11px;color:var(--brand)}
+.pinfo .sub{color:var(--mut)}
+.savechip{background:transparent;color:var(--lime);border:1px solid rgba(215,255,62,.4);font-weight:700;font-size:12px;padding:4px 11px;letter-spacing:.01em}
+.fld label{letter-spacing:.08em}
+.wishrow .iconbtn{flex:0 0 auto}
+#grid > .empty{grid-column:1/-1}
+/* reviews: compact when empty, form folded away until asked for */
+#rvsec .shead{align-items:center}
+.rvwrap.rvclosed .rvform{display:none}
+.rvwrap.rvclosed.rvempty{display:none}
+.rvwrap.rvempty{grid-template-columns:minmax(0,520px)}
+.flabel{display:block;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin-bottom:8px}
+/* cart / checkout clarity */
+.sumrow .pend{color:var(--dim);font-size:13px}
+.sumrow .plus{font-size:12px;font-weight:500;color:var(--dim)}
+.sumnote{font-size:12.5px;color:var(--dim);margin:8px 0 0;line-height:1.5}
+.cosum{display:none}
+@media (max-width:860px){
+  .cosum{display:flex;align-items:center;gap:12px;position:sticky;top:69px;z-index:20;margin:0 0 16px;padding:12px 16px;
+    background:rgba(20,20,28,.94);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:var(--r-sm);font-size:13.5px}
+  .cosum b{margin-left:auto}
+  .cosum .go{color:var(--lime);font-size:12.5px;font-weight:700;white-space:nowrap}
+  .cosum:empty{min-height:46px}
+}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* =====================================================================
+   "See it on your wall" — true-scale wall preview (product page)
+   ===================================================================== */
+.gtabs{display:inline-flex;gap:4px;padding:4px;margin-bottom:12px;border:1px solid var(--line);border-radius:99px;background:var(--bg2)}
+.gtabs button{border:0;background:transparent;color:var(--mut);font:inherit;font-size:13px;font-weight:700;padding:8px 16px;border-radius:99px;cursor:pointer;transition:background .2s,color .2s}
+.gtabs button.on{background:var(--lime);color:#0B0B0F}
+.gtabs button:not(.on):hover{color:var(--ink)}
+.gmain.is-wall{cursor:default;background:#0d0d12}
+.gmain.is-wall .count,.gmain.is-wall .gnav{display:none}
+.wallscene{--wall:#e8e2d7;--wall2:#d9d1c3;--floor1:#6b4f3a;--floor2:#5a4231;--skirt:#f3efe8;--fab:#2f3240;--fab2:#252834;
+  position:absolute;inset:0;overflow:hidden;animation:gswap .5s cubic-bezier(.16,1,.3,1)}
+.wallscene.tone-greige{--wall:#cfc5b4;--wall2:#bfb4a1;--skirt:#ece6dc}
+.wallscene.tone-sage{--wall:#a9b4a0;--wall2:#97a38e;--skirt:#e9ece4;--fab:#3a3530;--fab2:#2e2a26}
+.wallscene.tone-charcoal{--wall:#3b3b42;--wall2:#2e2e34;--skirt:#2a2a30;--floor1:#4a3a2e;--floor2:#3d2f25;--fab:#8a8478;--fab2:#76705f}
+/* wall: paint + a soft gallery spotlight from above + gentle corner falloff */
+.wl{position:absolute;inset:0;background:
+  radial-gradient(60% 45% at 50% 30%,rgba(255,250,235,.28),transparent 70%),
+  radial-gradient(140% 100% at 50% 40%,transparent 55%,rgba(0,0,0,.18) 100%),
+  linear-gradient(180deg,var(--wall),var(--wall2))}
+.tone-charcoal .wl{background:radial-gradient(55% 42% at 50% 30%,rgba(255,240,210,.16),transparent 70%),radial-gradient(140% 100% at 50% 40%,transparent 55%,rgba(0,0,0,.35) 100%),linear-gradient(180deg,var(--wall),var(--wall2))}
+.wfloor{position:absolute;left:0;right:0;bottom:0;height:var(--floor);
+  background:linear-gradient(180deg,rgba(0,0,0,.25),transparent 30%),
+    repeating-linear-gradient(90deg,rgba(0,0,0,.10) 0 1px,transparent 1px calc(var(--cm) * 18)),
+    linear-gradient(180deg,var(--floor1),var(--floor2))}
+.wskirt{position:absolute;left:0;right:0;bottom:var(--floor);height:calc(var(--cm) * 8);background:var(--skirt);
+  box-shadow:0 -1px 0 rgba(0,0,0,.06),0 2px 4px rgba(0,0,0,.18)}
+/* the six prints, 3mm board: thin edge + realistic drop shadow */
+.wset{position:absolute;left:50%;transform:translateX(-50%);display:grid;align-content:stretch;transition:width .5s,height .5s,bottom .5s}
+.wp{display:block;padding:0;border:0;background:#fff;cursor:zoom-in;position:relative;
+  box-shadow:0 1px 0 rgba(255,255,255,.4) inset,1px 1px 1px rgba(0,0,0,.25),0 calc(var(--cm) * 1.6) calc(var(--cm) * 2.6) rgba(0,0,0,.28),0 calc(var(--cm) * .4) calc(var(--cm) * .6) rgba(0,0,0,.22);
+  transition:transform .4s cubic-bezier(.16,1,.3,1),box-shadow .4s}
+.wp{min-height:0;overflow:hidden}
+.wp img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain}
+.gthumbs[hidden]{display:none!important}
+.wp:hover,.wp:focus-visible{transform:translateY(-2px) scale(1.03);outline:2px solid var(--lime);outline-offset:2px;z-index:1}
+/* sofa (drawn to scale, purely for reference) */
+.sofa{position:absolute;left:50%;transform:translateX(-50%);filter:drop-shadow(0 calc(var(--cm) * 3) calc(var(--cm) * 3) rgba(0,0,0,.35))}
+.sofa i{position:absolute;display:block;background:linear-gradient(180deg,var(--fab),var(--fab2))}
+.sofa .sb{left:7%;right:7%;top:0;height:58%;border-radius:calc(var(--cm) * 6) calc(var(--cm) * 6) calc(var(--cm) * 2) calc(var(--cm) * 2)}
+.sofa .ss{left:6%;right:6%;bottom:12%;height:36%;border-radius:calc(var(--cm) * 3);filter:brightness(1.12)}
+.sofa .sc{bottom:30%;height:24%;width:43%;border-radius:calc(var(--cm) * 3);filter:brightness(1.2)}
+.sofa .sc.l{left:7.5%}.sofa .sc.r{right:7.5%}
+.sofa .sa{bottom:12%;height:62%;width:9%;border-radius:calc(var(--cm) * 4)}
+.sofa .sa.l{left:0}.sofa .sa.r{right:0}
+.sofa .sl{bottom:0;height:12%;width:2.4%;background:#1a1410}
+.sofa .sl.l{left:6%}.sofa .sl.r{right:6%}
+/* controls */
+.wallctl{display:flex;flex-direction:column;gap:10px;margin-top:12px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg2)}
+.wallctl[hidden]{display:none}
+.wrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.wlab{width:52px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.seg{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:99px}
+.seg button{border:0;background:transparent;color:var(--mut);font:inherit;font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:99px;cursor:pointer;min-height:32px}
+.seg button.on{background:rgba(215,255,62,.14);color:var(--lime)}
+.swatches{display:inline-flex;gap:10px}
+.swatches button{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.2);padding:0}
+.swatches button.on{border-color:var(--lime);box-shadow:0 0 0 3px rgba(215,255,62,.18)}
+.swatches [data-v=white]{background:#e8e2d7}.swatches [data-v=greige]{background:#cfc5b4}
+.swatches [data-v=sage]{background:#a9b4a0}.swatches [data-v=charcoal]{background:#3b3b42}
+.wtoggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--mut);margin-left:auto;cursor:pointer}
+.wtoggle input{width:auto;accent-color:var(--lime)}
+.wnote{margin:2px 0 0;font-size:12.5px;line-height:1.5;color:var(--dim)}
+@media (max-width:700px){.wtoggle{margin-left:0}.wlab{width:46px}}
+@media (prefers-reduced-motion:reduce){.wallscene{animation:none}.wset,.wp{transition:none}}

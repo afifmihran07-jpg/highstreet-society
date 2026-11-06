@@ -10,7 +10,7 @@ const HEAD = `<div class="shophead"><h1>CUSTOM <span class="l">DESIGN</span></h1
 function loginGate(){
   el.innerHTML = HEAD + `
   <div class="panel" style="max-width:520px;margin:0 auto;text-align:center">
-    <div style="font-size:40px;margin-bottom:8px">🎨</div>
+    <div class="eico" style="margin:0 auto 8px">${H.ico('frame')}</div>
     <h2 style="margin-bottom:6px">Login to send a request</h2>
     <p style="color:var(--dim);margin-bottom:18px">We need an account so you can track your request and we can reach you about pricing.</p>
     <a class="btn btn-lime btn-block" href="/account?next=/custom-design">Login or create account →</a>

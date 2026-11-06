@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Contact — Highstreet Society</title>
 <meta name="description" content="Contact Highstreet Society — WhatsApp, phone and social links. A4 poster sets delivered all over Bangladesh with Cash on Delivery.">
-<link rel="icon" href="/images/logo.png">
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css?v=f9569db4">
+<link rel="icon" href="/images/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css?v=db481a64">
 </head>
 <body>
 <div class="announce" id="announce"></div>
@@ -16,18 +17,20 @@
 <main class="prose" id="content"></main>
 <footer class="site" id="ftr"></footer>
 <nav class="tabbar" id="tabbar"></nav>
-<script src="/js/store.js?v=ddeeca84"></script>
+<script src="/js/store.js?v=df23cfca"></script>
 <script>
 (async function(){
   await HSS.renderLayout('contact');
   const H=HSS, c=(H.settings&&H.settings.contact)||{};
-  document.getElementById('content').innerHTML=`<h1>TALK TO US ✦</h1>
+  // Instagram handle comes from the saved profile URL (it used to be typed by hand, with a typo)
+  const igHandle = (()=>{ try{ return '@' + new URL(c.instagram).pathname.split('/').filter(Boolean)[0]; }catch(e){ return 'Instagram'; } })();
+  document.getElementById('content').innerHTML=`<h1>TALK TO US</h1>
   <p class="lead">Questions about a set, your order, or delivery? Reach out — we reply fast.</p>
   <div class="panel" style="margin-top:24px">
-    ${c.mobile?`<div class="sumrow"><span>📞 Phone / WhatsApp</span><b><a href="tel:${H.esc(c.mobile)}" style="color:var(--lime)">${H.esc(c.mobile)}</a></b></div>`:''}
-    ${c.instagram?`<div class="sumrow"><span>📸 Instagram</span><b><a href="${H.esc(c.instagram)}" target="_blank" rel="noopener" style="color:var(--lime)">@highstreetsoociety</a></b></div>`:''}
-    ${c.facebook?`<div class="sumrow"><span>📘 Facebook</span><b><a href="${H.esc(c.facebook)}" target="_blank" rel="noopener" style="color:var(--lime)">Highstreet Society</a></b></div>`:''}
-    ${c.address?`<div class="sumrow"><span>📍 Location</span><b>${H.esc(c.address)}</b></div>`:''}
+    ${c.mobile?`<div class="sumrow"><span class="ci">${H.ico('phone')}Phone / WhatsApp</span><b><a href="tel:${H.esc(c.mobile)}" style="color:var(--lime)">${H.esc(c.mobile)}</a></b></div>`:''}
+    ${c.instagram?`<div class="sumrow"><span class="ci">${H.ico('camera')}Instagram</span><b><a href="${H.esc(c.instagram)}" target="_blank" rel="noopener" style="color:var(--lime)">${H.esc(igHandle)}</a></b></div>`:''}
+    ${c.facebook?`<div class="sumrow"><span class="ci">${H.ico('chat')}Facebook</span><b><a href="${H.esc(c.facebook)}" target="_blank" rel="noopener" style="color:var(--lime)">Highstreet Society</a></b></div>`:''}
+    ${c.address?`<div class="sumrow"><span class="ci">${H.ico('pin')}Location</span><b>${H.esc(c.address)}</b></div>`:''}
   </div>
   <div class="cbtns">
     ${c.whatsapp?`<a class="btn btn-lime" href="https://wa.me/88${H.esc(c.whatsapp)}" target="_blank" rel="noopener">WhatsApp Us</a>`:''}

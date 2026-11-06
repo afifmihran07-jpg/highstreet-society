@@ -7,7 +7,7 @@ let tab='orders', me=null;
 async function boot(){
   if(!H.loggedIn()) return loginView();
   try{ me=(await H.api('/api/auth/me')).customer; }catch(e){ HSS.store.remove('hss_token'); return loginView(); }
-  el.innerHTML=`<div class="shophead"><h1>HEY, ${H.esc(me.name.split(' ')[0].toUpperCase())} ✦</h1><p>${H.esc(me.mobile)}</p></div>
+  el.innerHTML=`<div class="shophead"><h1>HEY, ${H.esc(me.name.split(' ')[0].toUpperCase())}</h1><p>${H.esc(me.mobile)}</p></div>
   <div class="acctabs">
     <button data-t="orders" class="${tab==='orders'?'on':''}">My Orders</button>
     <button data-t="profile" class="${tab==='profile'?'on':''}">Profile</button>
@@ -23,7 +23,7 @@ async function boot(){
       const d=await H.api('/api/orders/mine');
       if(!d.orders.length){ pane.innerHTML=H.empty('📦','No orders yet','Your orders will show up here.','<a class="btn btn-lime" href="/shop">Shop sets</a>'); return; }
       pane.innerHTML=d.orders.map(o=>`<div class="obox"><div class="oh"><b>${H.esc(o.id)}</b>${H.statusPill(o.status)}</div>
-        <div class="oitems">${o.items.map(i=>`<a href="/product/${i.slug}"><img src="${H.esc(H.img(i.cover,200))}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo.png'"></a>`).join('')}</div>
+        <div class="oitems">${o.items.map(i=>`<a href="/product/${i.slug}"><img src="${H.esc(H.img(i.cover,200))}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo-240.webp'"></a>`).join('')}</div>
         <div class="sumrow"><span>${new Date(o.createdAt).toLocaleString()} • ${o.items.reduce((s,i)=>s+i.qty,0)} item(s) • ${o.paymentMethod.toUpperCase()}</span><b>${H.money(o.total)}</b></div>
         <div class="arow" style="margin-top:10px;display:flex;gap:10px"><a class="btn btn-ghost btn-sm" href="/track?id=${o.id}&mobile=${o.customer.mobile}">Track</a><button class="btn btn-ghost btn-sm" onclick='REORDER(${JSON.stringify(o.items.map(i=>({id:i.productId,qty:i.qty})))})'>Reorder</button></div>
       </div>`).join('');
@@ -32,7 +32,7 @@ async function boot(){
   }
 }
 function loginView(mode='login'){
-  el.innerHTML=`<div class="centerbox"><div class="panel" style="margin-top:34px"><h2 style="text-align:center">${mode==='login'?'Welcome back ✦':'Join the Society ✦'}</h2>
+  el.innerHTML=`<div class="centerbox"><div class="panel" style="margin-top:34px"><h2 style="text-align:center">${mode==='login'?'Welcome back':'Join the Society'}</h2>
     <p style="text-align:center;color:var(--mut);font-size:14px;margin:-8px 0 20px">${mode==='login'?'Login to track orders faster.':'Create an account for faster checkout & order history.'}</p>
     ${mode==='register'?'<div class="fld"><label>Full name *</label><input id="a_name" placeholder="Your name"></div>':''}
     <div class="fld"><label>Mobile number *</label><input id="a_mobile" inputmode="numeric" maxlength="11" placeholder="01XXXXXXXXX"></div>
@@ -72,7 +72,7 @@ function forgotView(){
   const waMsg = c.whatsapp ? 'https://wa.me/' + H.waNumber(c.whatsapp) + '?text=' +
     encodeURIComponent('Hi HSS, I forgot my account password. Please send me a reset code.') : '';
   el.innerHTML=`<div class="centerbox"><div class="panel" style="margin-top:34px">
-    <h2 style="text-align:center">Reset password ✦</h2>
+    <h2 style="text-align:center">Reset password</h2>
     <p style="text-align:center;color:var(--mut);font-size:14px;margin:-8px 0 16px">
       <b>Step 1.</b> Message us on WhatsApp <b>from your registered mobile number</b> — we will send you a one-time reset code (valid 30 minutes).</p>
     ${waMsg?`<a class="btn btn-ghost btn-block" id="f_wa" href="${H.esc(waMsg)}" target="_blank" rel="noopener">Request a code on WhatsApp</a>`:''}

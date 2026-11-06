@@ -10,7 +10,7 @@ el.innerHTML=`<div class="shophead"><h1>TRACK ORDER</h1><p>Enter your Order ID +
     <div class="fld"><label>Mobile number *</label><input id="t_mobile" inputmode="numeric" maxlength="11" placeholder="01XXXXXXXXX" value="${H.esc(qs.get('mobile')||'')}"></div>
     <button class="btn btn-lime btn-block" onclick="TRACK()">Track →</button>
   </div>
-  <div class="panel" id="res"><div class="empty"><div class="e">📦</div><h3>Your order status will appear here</h3><p>We confirm every order by phone call.</p></div></div>
+  <div class="panel" id="res"><div class="empty"><div class="e"><span class="eico">${H.ico('box')}</span></div><h3>Your order status will appear here</h3><p>We confirm every order by phone call.</p></div></div>
 </div>`;
 const STEPS=[['pending','Order placed','We received your order'],['payment-pending','Payment check','Verifying bKash/Nagad (COD skips this)'],['confirmed','Confirmed','Confirmed by phone'],['processing','Processing','Packing your posters'],['ready','Ready','Ready for courier pickup'],['shipped','Shipped','On the way to you'],['delivered','Delivered','Enjoy your new walls!']];
 window.TRACK=async()=>{
@@ -28,7 +28,7 @@ window.TRACK=async()=>{
         ${H.statusPill(o.status)}</div>
       ${o.status==='cancelled'?'<div class="empty"><div class="e">✕</div><h3>This order was cancelled</h3><p>Contact us if you need help re-ordering.</p></div>':`<div class="timeline">${STEPS.map((s,i)=>`
         <div class="tstep ${i<cur||o.status==='delivered'&&i<=cur?'done':i===cur?'now':''}"><span class="tdot">${i<cur||o.status==='delivered'&&i<=cur?'✓':(i+1)}</span><div><b>${s[1]}</b><span>${s[2]}</span></div></div>`).join('')}</div>`}
-      <div class="oitems" style="margin-top:6px">${o.items.map(i=>`<img src="${H.esc(H.img(i.cover,200))}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo.png'">`).join('')}</div>
+      <div class="oitems" style="margin-top:6px">${o.items.map(i=>`<img src="${H.esc(H.img(i.cover,200))}" alt="${H.esc(i.name)}" title="${H.esc(i.name)} × ${i.qty}" onerror="this.src='/images/logo-240.webp'">`).join('')}</div>
       <div class="sumrow" style="margin-top:12px"><span>Deliver to</span><span style="text-align:right">${H.esc(o.customer.name)}<br>${H.esc(o.customer.address)}</span></div>`;
   }catch(e){ res.innerHTML=H.empty('😕','Order not found',H.esc(e.message)); }
 };

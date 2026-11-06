@@ -21,6 +21,7 @@ let items=[], subtotal=0, zone='inside', method = pay.cod.enabled?'cod':(pay.bka
 let coupon=null, discount=0;
 
 el.innerHTML = `<div class="shophead"><h1>CHECKOUT</h1><p>Almost yours — delivery & payment details below.</p></div>
+<a class="cosum" id="cosum" href="#ordersum" aria-label="Jump to order summary"></a>
 <div class="split">
   <div>
     <div class="panel" style="margin-bottom:18px"><h2 class="steph"><span>01</span>Delivery information</h2>
@@ -45,13 +46,13 @@ el.innerHTML = `<div class="shophead"><h1>CHECKOUT</h1><p>Almost yours — deliv
     </div>
     <div class="panel" style="margin-bottom:18px"><h2 class="steph"><span>02</span>Delivery charge</h2>
       <div id="zonebox" class="zonebox">Select your district and thana to see the delivery charge.</div>
-      ${del.freeAbove>0?`<p style="font-size:13px;color:var(--ok);font-weight:700;margin-top:10px">Free delivery on orders over ${H.money(del.freeAbove)} 🎉</p>`:''}
+      ${del.freeAbove>0?`<p style="font-size:13px;color:var(--ok);font-weight:700;margin-top:10px">Free delivery on orders over ${H.money(del.freeAbove)}</p>`:''}
     </div>
     <div class="panel"><h2 class="steph"><span>03</span>Payment method</h2><div id="paylist"></div>
       <div class="fld" style="margin-top:6px"><label>Order notes (optional)</label><input id="f_notes" placeholder="Anything we should know?"></div>
     </div>
   </div>
-  <div class="panel"><h2>Order summary</h2><div id="citems"></div>
+  <div class="panel" id="ordersum"><h2>Order summary</h2><div id="citems"></div>
     <div class="couponrow"><input id="f_coupon" placeholder="Coupon code"><button class="btn btn-ghost btn-sm" onclick="APPLY()">Apply</button></div>
     <div class="cmsg" id="cmsg"></div>
     <div id="sum" style="margin-top:10px"></div>
@@ -62,6 +63,8 @@ el.innerHTML = `<div class="shophead"><h1>CHECKOUT</h1><p>Almost yours — deliv
 
 let zoneReady=false;
 function charge(){ let c = zone==='inside'?del.inside:del.outside; if(del.freeAbove>0 && (subtotal-discount)>=del.freeAbove) c=0; return c; }
+// what the summary shows: null until the district is known (unless delivery is free anyway)
+function dueDelivery(){ if(del.freeAbove>0 && (subtotal-discount)>=del.freeAbove) return 0; return zoneReady ? charge() : null; }
 function renderZone(){
   const box=document.getElementById('zonebox');
   if(!box) return;
@@ -76,8 +79,12 @@ function renderSum(){
   document.getElementById('sum').innerHTML = `
     <div class="sumrow"><span>Subtotal</span><span>${H.money(subtotal)}</span></div>
     ${discount?`<div class="sumrow"><span>Coupon ${H.esc(coupon)} <button class="rm" style="background:none;border:none;color:var(--danger);font-weight:700" onclick="RMCOUPON()">✕</button></span><span class="free">−${H.money(discount)}</span></div>`:''}
-    <div class="sumrow"><span>Delivery</span><span>${charge()===0?'<span class="free">FREE</span>':H.money(charge())}</span></div>
-    <div class="sumrow total"><span>Total</span><span>${H.money(subtotal-discount+charge())}</span></div>`;
+    <div class="sumrow"><span>Delivery</span><span>${dueDelivery()===null?'<span class="pend">Select your district</span>':dueDelivery()===0?'<span class="free">FREE</span>':H.money(dueDelivery())}</span></div>
+    <div class="sumrow total"><span>Total</span><span>${H.money(subtotal-discount+(dueDelivery()||0))}${dueDelivery()===null?'<small class="plus"> + delivery</small>':''}</span></div>`;
+  // phones: compact summary bar at the top of the form (tap → full summary)
+  const cs=document.getElementById('cosum');
+  if(cs){ const n=items.reduce((a,x)=>a+x.q,0);
+    cs.innerHTML=`<span>${n} item${n>1?'s':''}</span><b>${H.money(subtotal-discount+(dueDelivery()||0))}${dueDelivery()===null?' + delivery':''}</b><span class="go">View summary</span>`; }
 }
 function renderPay(){
   const box=document.getElementById('paylist');
@@ -140,16 +147,18 @@ window.PLACE = async () => {
 
 // load items
 const ci=document.getElementById('citems');
-for(const it of H.getCart()){
+// fetch all lines in parallel (was one request after another)
+const CART=H.getCart();
+const FETCHED=await Promise.all(CART.map(it=>H.api('/api/products/'+encodeURIComponent(it.id)).then(d=>d.product,()=>null)));
+for(const [ix,it] of CART.entries()){
   try{
-    const d=await H.api('/api/products/'+encodeURIComponent(it.id));
-    const p=d.product, sz=it.size||null;
+    const p=FETCHED[ix]; if(!p) continue; const sz=it.size||null;
     let avail=p.stock;
     if(sz&&(p.sizes||[]).length){ const row=p.sizes.find(x=>x.size.toLowerCase()===String(sz).toLowerCase()); avail=row?row.stock:0; }
     const q=Math.min(it.qty||1, p.allowBackorder?20:Math.max(1,avail));
     items.push({p,q,sz}); subtotal+=p.effPrice*q;
     ci.insertAdjacentHTML('beforeend',`<div class="citem" style="grid-template-columns:56px 1fr auto">
-      <img src="${H.esc(H.img(p.cover,200))}" style="width:56px;height:68px" alt="" onerror="this.src='/images/logo.png'">
+      <img src="${H.esc(H.img(p.cover,200))}" style="width:56px;height:68px" alt="" onerror="this.src='/images/logo-240.webp'">
       <div><h3 style="font-size:14px">${H.esc(p.name)}</h3><div class="m">${sz?`Size <b class="szchip">${H.esc(sz)}</b> • `:''}Qty ${q}</div></div>
       <div class="r"><b style="font-size:14.5px">${H.money(p.effPrice*q)}</b></div></div>`);
   }catch(e){}

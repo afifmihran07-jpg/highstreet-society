@@ -714,7 +714,12 @@ app.get('/api/products', (req,res)=>{
 app.get('/api/products/:key', (req,res)=>{
   const p = db.products.find(x=>x.slug===req.params.key||x.id===req.params.key);
   if(!p || !p.published) return res.status(404).json({ error:'Product not found' });
-  const related = db.products.filter(x=>x.published && x.id!==p.id && x.categoryIds.some(c=>p.categoryIds.includes(c))).slice(0,8).map(pubProduct);
+  // "Complete the wall": same-category sets first, then the rest of the catalogue
+  // (best-selling, then newest) so the row is never one lonely card.
+  const others = db.products.filter(x=>x.published && x.id!==p.id);
+  const same = others.filter(x=>(x.categoryIds||[]).some(c=>(p.categoryIds||[]).includes(c)));
+  const rest = others.filter(x=>!same.includes(x)).sort((a,b)=>(b.sold||0)-(a.sold||0) || (b.createdAt||0)-(a.createdAt||0));
+  const related = [...same, ...rest].slice(0,8).map(pubProduct);
   res.json({ product: pubProduct(p), related });
 });
 app.post('/api/products/:key/view', async (req,res)=>{

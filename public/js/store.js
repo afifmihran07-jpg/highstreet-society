@@ -216,18 +216,32 @@ H.trackCart = () => {
 };
 
 /* ---- product card ---- */
+/* Artwork first: a poster set's card shows its six actual posters as a small
+   3×2 gallery wall (each print whole, never cropped), not the branded cover.
+   Sets without six poster images fall back to the cover. */
+H.posterWall = (p, w = 200) => {
+  const arts = (p.posters || []).filter(Boolean).slice(0, 6);
+  if (arts.length < 6) return '';
+  return `<span class="pwall" aria-hidden="true">${arts.map((u, i) =>
+    `<span class="pw" style="--i:${i}"><img src="${H.esc(H.img(u, w))}" alt="" loading="lazy" decoding="async" width="200" height="283" onerror="this.parentNode.classList.add('miss')"></span>`).join('')}</span>`;
+};
 H.card = p => {
   const out = !(p.stock>0||p.allowBackorder);
-  return `<div class="card">
-    <a class="ph" href="/product/${p.slug}" aria-label="${H.esc(p.name)}">
-      <img src="${H.esc(H.img(p.cover,600))}" ${H.imgSet(p.cover)?`srcset="${H.esc(H.imgSet(p.cover))}" sizes="(max-width:700px) 50vw, 300px"`:''} alt="${H.esc(p.name)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.removeAttribute('srcset');this.src='/images/logo.png'">
-      <span class="tags">${out?'<span class="ptag out">SOLD OUT</span>':p.discountPct?'<span class="ptag off">-'+p.discountPct+'%</span>':p.isNew?'<span class="ptag new">NEW</span>':p.bestseller?'<span class="ptag best">BESTSELLER</span>':''}</span>
-    </a>
-    <button class="wish ${H.inWish(p.id)?'on':''}" data-w="${p.id}" onclick="event.preventDefault();HSS.toggleWish('${p.id}')" aria-label="wishlist">
+  const wall = (p.type || 'poster') === 'poster' ? H.posterWall(p) : '';
+  const tag = out ? '<span class="ptag out">SOLD OUT</span>' : p.discountPct ? '<span class="ptag off">-'+p.discountPct+'%</span>'
+    : p.isNew ? '<span class="ptag new">NEW</span>' : p.bestseller ? '<span class="ptag best">BESTSELLER</span>' : '';
+  const WISH = `<button class="wish ${H.inWish(p.id)?'on':''}" data-w="${p.id}" onclick="event.preventDefault();HSS.toggleWish('${p.id}')" aria-label="wishlist">
       <svg viewBox="0 0 24 24" fill="${H.inWish(p.id)?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
-    </button>
+    </button>`;
+  return `<div class="card${wall ? ' card-wall' : ''}">
+    <a class="ph" href="/product/${p.slug}" aria-label="${H.esc(p.name)}: view the set">
+      ${wall || `<img src="${H.esc(H.img(p.cover,600))}" ${H.imgSet(p.cover)?`srcset="${H.esc(H.imgSet(p.cover))}" sizes="(max-width:700px) 50vw, 300px"`:''} alt="${H.esc(p.name)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.removeAttribute('srcset');this.src='/images/logo-240.webp'">`}
+      ${wall ? '' : `<span class="tags">${tag}</span>`}
+    </a>
+    ${wall ? '' : WISH}
     <div class="pb">
-      <span class="setno">SET ${H.esc(p.setNo||'--')}</span>
+      ${wall ? WISH : ''}
+      <span class="setno">SET ${H.esc(p.setNo||'--')}${wall && tag ? ' ' + tag : ''}</span>
       <a href="/product/${p.slug}"><h3>${H.esc(p.name)}</h3></a>
       <span class="meta">${p.type==='clothing'?((p.sizes||[]).map(x=>H.esc(x.size)).join(' · ')||'Apparel'):p.type==='combo'?((p.bundleItems||[]).length+' items in bundle'):'6 posters • '+H.esc(p.posterSize||'A4')+' • '+H.esc(p.boardThickness||'3mm')+' board'}</span>
       <div class="prow">
@@ -238,7 +252,26 @@ H.card = p => {
   </div>`;
 };
 
-H.empty = (e,h,s,btn='') => `<div class="empty"><div class="e">${e}</div><h3>${h}</h3><p>${s}</p><div style="margin-top:18px">${btn}</div></div>`;
+/* One line-icon language for the storefront (same stroke style as the header icons). */
+const SVG = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + d + '</svg>';
+H.ICONS = {
+  bag: SVG('<path d="M6 7h12l-1.2 13H7.2L6 7z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/>'),
+  search: SVG('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>'),
+  alert: SVG('<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5h.01"/>'),
+  box: SVG('<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5v-9z"/><path d="M3.5 7.5L12 12l8.5-4.5"/><path d="M12 12v9"/>'),
+  file: SVG('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 16h5"/>'),
+  frame: SVG('<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 15l3-3 2 2 2-2 2 3"/><circle cx="9.5" cy="8.5" r="1.3"/>'),
+  compass: SVG('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'),
+  heart: SVG('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>'),
+  phone: SVG('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>'),
+  pin: SVG('<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),
+  camera: SVG('<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>'),
+  chat: SVG('<path d="M4 5h16v11H9l-5 4z"/>'),
+  sale: SVG('<path d="M3 12V4h8l10 10-8 8z"/><path d="M7.5 7.5h.01"/>')
+};
+H.ico = name => H.ICONS[name] || '';
+const EMOJI_ICON = { '🛒':'bag', '😕':'alert', '🔍':'search', '📦':'box', '📄':'file', '🎨':'frame', '🪐':'compass' };
+H.empty = (e,h,s,btn='') => `<div class="empty"><div class="e">${EMOJI_ICON[e] ? '<span class="eico">' + H.ico(EMOJI_ICON[e]) + '</span>' : e}</div><h3>${h}</h3><p>${s}</p><div style="margin-top:18px">${btn}</div></div>`;
 
 H.statusPill = s => `<span class="pillst st-${s}">${String(s).replace(/-/g,' ')}</span>`;
 
@@ -283,7 +316,7 @@ function paintLayout(active, s){
   if(hdr){
     hdr.innerHTML = `<div class="wrap hbar">
       <button class="icobtn burger" onclick="document.getElementById('mmenu').classList.add('open')" aria-label="menu">${ICO.menu}</button>
-      <a class="logo" href="/"><img src="/images/logo.png" alt="Highstreet Society logo"><span>HIGHSTREET<br><small>SOCIETY • EST 2025</small></span></a>
+      <a class="logo" href="/"><img src="/images/logo-240.webp" alt="Highstreet Society logo"><span>HIGHSTREET<br><small>SOCIETY • EST 2025</small></span></a>
       <nav class="main">
         <a href="/" class="${active==='home'?'on':''}">Home</a>
         <a href="/shop" class="${active==='shop'?'on':''}">Shop</a>
@@ -304,7 +337,7 @@ function paintLayout(active, s){
   if(mm){
     mm.innerHTML = `<div class="scrim" onclick="document.getElementById('mmenu').classList.remove('open')"></div>
       <div class="panel">
-        <a class="logo" href="/" style="margin-bottom:18px"><img src="/images/logo.png" alt="logo"><span>HIGHSTREET<br><small>SOCIETY</small></span></a>
+        <a class="logo" href="/" style="margin-bottom:18px"><img src="/images/logo-240.webp" alt="logo"><span>HIGHSTREET<br><small>SOCIETY</small></span></a>
         <a class="mlink" href="/">Home</a><a class="mlink" href="/shop">Shop All Sets</a>
         <a class="mlink" href="/shop?filter=new">New Arrivals</a><a class="mlink" href="/shop?filter=best">Best Sellers</a>
         <a class="mlink" href="/custom-design">✦ Custom Design</a><a class="mlink" href="/track">Track Order</a><a class="mlink" href="/wishlist">Wishlist</a>
@@ -320,7 +353,7 @@ function paintLayout(active, s){
     const c=s.contact||{};
     ftr.innerHTML = `<div class="wrap"><div class="fgrid">
       <div class="fbrand">
-        <a class="logo" href="/"><img src="/images/logo.png" alt="logo"><span>HIGHSTREET<br><small>SOCIETY</small></span></a>
+        <a class="logo" href="/"><img src="/images/logo-240.webp" alt="logo"><span>HIGHSTREET<br><small>SOCIETY</small></span></a>
         <p>${H.esc(s.brand.tagline||'')}. Every set: six premium A4 posters on 3mm board.</p>
         <div class="socials">
           ${c.instagram?`<a href="${H.esc(c.instagram)}" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.2" fill="currentColor"/></svg></a>`:''}
@@ -360,4 +393,22 @@ H.loadCats = async () => {
 };
 H.loggedIn = () => !!HSS.store.get('hss_token');
 H.logout = async () => { try{ await H.api('/api/auth/logout',{method:'POST'}); }catch(e){} HSS.store.remove('hss_token'); location.href='/'; };
+/* Accessibility: connect every form label to its field (labels are written as
+   <div class="fld"><label>Name</label><input …></div> across the site). Runs for
+   content rendered later too, so screen readers announce each field's name. */
+(function(){
+  let seq=0, queued=false;
+  function link(){
+    queued=false;
+    document.querySelectorAll('.fld').forEach(f=>{
+      const lab=f.querySelector(':scope > label'); if(!lab || lab.htmlFor) return;
+      const ctl=f.querySelector(':scope input:not([type=hidden]), :scope select, :scope textarea'); if(!ctl) return;
+      if(!ctl.id) ctl.id='fld-'+(++seq);
+      lab.htmlFor=ctl.id;
+    });
+  }
+  const queue=()=>{ if(!queued){ queued=true; requestAnimationFrame(link); } };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', queue); else queue();
+  new MutationObserver(queue).observe(document.documentElement,{childList:true,subtree:true});
+})();
 })();

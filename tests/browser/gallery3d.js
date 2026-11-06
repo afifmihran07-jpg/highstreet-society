@@ -93,6 +93,7 @@ module.exports = async function exhibition(T) {
       const waOn = await page.evaluate(async () => {
         const t = document.querySelector('.g3d-tip.on'), wa = document.getElementById('wafab');
         if (!t || !wa) return { missing: !t ? 'tip' : 'wafab' };
+        document.body.style.paddingBottom = '900px';             // room to scroll the caption down to the button (test only)
         const w0 = wa.getBoundingClientRect(), tr = t.getBoundingClientRect();
         scrollBy(0, Math.round(tr.bottom - (w0.bottom + 6)));          // caption bottom just below the button's normal spot
         await new Promise(r => setTimeout(r, 700));
@@ -101,13 +102,16 @@ module.exports = async function exhibition(T) {
         const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
         return { overlap: Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0,
           onScreen: b.top >= 0 && b.bottom <= innerHeight, clickable: !!(hit && hit.closest('#wafab')), clearOfTabbar: b.bottom <= tab.top + 1,
-          lifted: !!wa.style.translate };
+          lifted: !!wa.style.translate,
+          // would the button cover the caption in its normal (unlifted) position?
+          needed: (() => { const bottom = innerHeight - (parseFloat(getComputedStyle(wa).bottom) || 0), top = bottom - wa.offsetHeight;
+            return bottom > a.top - 10 && top < a.bottom + 10 && b.right > a.left && b.left < a.right; })() };
       });
       check('touch: WhatsApp button glides clear of the open caption and stays tappable',
-        waOn.overlap === false && waOn.onScreen && waOn.clickable && waOn.clearOfTabbar && waOn.lifted, JSON.stringify(waOn));
+        waOn.overlap === false && waOn.onScreen && waOn.clickable && waOn.clearOfTabbar && (waOn.lifted || !waOn.needed), JSON.stringify(waOn));
       // close the caption (tap empty stage corner) → button returns to its usual place
       const st0 = await page.$eval('.g3d-stage', e => { const r = e.getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4, vis: r.top >= 0 }; });
-      if (!st0.vis) await page.$eval('.g3d-stage', e => e.scrollIntoView({ block: 'center' }));
+      await page.$eval('.g3d-stage', e => e.scrollIntoView({ block: 'center' })); await page.waitForTimeout(300);
       const st1 = await page.$eval('.g3d-stage', e => { const r = e.getBoundingClientRect(); return { x: r.left + 4, y: r.top + 4 }; });
       await page.touchscreen.tap(st1.x, st1.y); await page.waitForTimeout(700);
       const waOff = await page.evaluate(() => ({ open: !!document.querySelector('.g3d-tip.on'), translate: document.getElementById('wafab').style.translate }));

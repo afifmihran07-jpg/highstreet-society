@@ -22,6 +22,8 @@ function syncUrl(){
   if(u !== location.pathname + location.search) history.replaceState(null, '', u);
 }
 
+// reserve the category description line before the (async) category list arrives
+if(state.cat){ const d=document.createElement('p'); d.className='catdesc'; document.querySelector('.shophead h1').after(d); }
 const cats = await H.loadCats();
 const chips = document.getElementById('catchips');
 const head = document.querySelector('.shophead');
@@ -32,7 +34,7 @@ function renderHead(){
   let d = head.querySelector('.catdesc');
   if(!d){ d = document.createElement('p'); d.className = 'catdesc'; head.querySelector('h1').after(d); }
   d.textContent = c && c.description ? c.description : '';
-  d.hidden = !d.textContent;
+  d.hidden = !d.textContent && !c;            // keep the reserved line on category pages
   document.title = (c ? c.name + ' Poster Sets' : t) + ' — Highstreet Society';
 }
 function renderChips(){

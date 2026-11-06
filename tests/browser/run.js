@@ -220,27 +220,33 @@ async function storefront(browser, base, snap, vp) {
     await page.waitForSelector('.pinfo h1', { timeout: 20000 });
     const h1 = (await page.innerText('.pinfo h1')).trim();
     const now = (await page.innerText('.pricerow .now')).trim();
-    // thumbnails are served resized through /img?w=…&u=<original>; compare the originals
-    const thumbs = (await page.$$eval('#gthumbs img', is => is.map(i => i.getAttribute('src'))))
-      .map(src => src.startsWith('/img?') ? new URLSearchParams(src.slice(5)).get('u') : src);
-    const expectedImgs = [p.cover, ...(p.posters || [])].filter(Boolean);
+    // images are served resized through /img?w=…&u=<original>; compare the originals
+    const orig = src => src.startsWith('/img?') ? new URLSearchParams(src.slice(5)).get('u') : src;
+    // gallery opens on the whole set: the 6 posters, then a thumbnail per poster, then the cover last
+    const setImgs = (await page.$$eval('#gview .gsp img', is => is.map(i => i.getAttribute('src')))).map(orig);
+    const thumbs = (await page.$$eval('#gthumbs > button:not(.tset) > img', is => is.map(i => i.getAttribute('src')))).map(orig);
+    const expectedImgs = [...(p.posters || []), p.cover].filter(Boolean);
     const spec = await page.innerText('.specbox').catch(() => '');
-    await page.waitForFunction(() => { const i = document.getElementById('gimg'); return i && i.complete; }, null, { timeout: 30000 }).catch(() => {});
-    const mainOk = await page.$eval('#gimg', i => i.naturalWidth > 0 && !/logo\.png$/.test(i.currentSrc || i.src));
+    await page.waitForFunction(() => [...document.querySelectorAll('#gview img')].every(i => i.complete), null, { timeout: 30000 }).catch(() => {});
+    const mainOk = await page.$$eval('#gview img', is => is.length > 0 && is.every(i => i.naturalWidth > 0));
     const ok = r.status() === 200 && h1 === p.name && now === money(effPrice(p)) &&
-      JSON.stringify(thumbs) === JSON.stringify(expectedImgs) && thumbs.length === 7 && mainOk &&
-      /6/.test(spec) && /A4/.test(spec);
-    check(`${p.slug}: name, ${money(effPrice(p))}, cover + 6 posters, specs, main image loads`, ok,
-      `status=${r.status()} h1="${h1}" price="${now}" thumbs=${thumbs.length} mainImg=${mainOk} spec="${spec.replace(/\s+/g, ' ')}"`);
+      JSON.stringify(setImgs) === JSON.stringify(p.posters) && JSON.stringify(thumbs) === JSON.stringify(expectedImgs) &&
+      (await page.$$('#gthumbs > button')).length === 8 && mainOk && /6/.test(spec) && /A4/.test(spec);
+    check(`${p.slug}: name, ${money(effPrice(p))}, set view of its 6 posters, poster + cover thumbnails, specs, images load`, ok,
+      `status=${r.status()} h1="${h1}" price="${now}" set=${setImgs.length} thumbs=${thumbs.length} mainImg=${mainOk} spec="${spec.replace(/\s+/g, ' ')}"`);
   }
   // gallery navigation on one product
   const gp = published[0];
   await page.goto(base + '/product/' + gp.slug, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#gcount');
-  await page.click('.gnav.r');
-  check('gallery next button advances to poster 2', /^2 \/ 7/.test(await page.innerText('#gcount')), await page.innerText('#gcount'));
+  check('gallery opens on the whole set', /All 6 posters/.test(await page.innerText('#gcount')), await page.innerText('#gcount'));
+  await page.click('#gview .gsp[data-n="2"]');
+  check('choosing a poster in the set view shows it on its own', /Poster 2 \/ 6/.test(await page.innerText('#gcount')) && !!(await page.$('#gimg')), await page.innerText('#gcount'));
+  await page.click('#gthumbs > button:last-child');
+  check('the branded cover is still available (last thumbnail)', /Set cover/.test(await page.innerText('#gcount')), await page.innerText('#gcount'));
+  await page.click('#gthumbs > button.tset');
   const brokenThumbs = await brokenImages(page, '#gthumbs img');
-  check('all 7 gallery thumbnails load', !brokenThumbs.length, brokenThumbs.join(', '));
+  check('all gallery thumbnails load', !brokenThumbs.length, brokenThumbs.join(', '));
   check('no horizontal overflow on product page', (await overflow(page)) <= 1);
   await page.screenshot({ path: path.join(ART, `product-${tag}.png`) });
 
@@ -343,6 +349,7 @@ async function admin(browser, base, snap) {
     await flows.customerFlows(T);
     await flows.adminModules(T);
     await require('./gallery3d')(T);
+    await require('./premium')(T);
     await flows.phase3(T);   // last: it changes prices/homepage on the throwaway server
     heading('Server log');
     const badLines = server.log().split('\n').filter(l =>
