@@ -32,7 +32,16 @@ const DEF = {
   insta: { title: 'Follow the society', text: 'New drops, room inspo & behind-the-scenes, first on Instagram.' }
 };
 const DEFAULT_HERO_IMG = '/images/hero-collage.png';
+// the original static collage: shown when the dynamic hero can't be built
+const STATIC_ART = `<picture>
+          <source media="(max-width:700px)" srcset="/images/hero-collage-sm.webp" type="image/webp">
+          <source srcset="/images/hero-collage.webp" type="image/webp">
+          <img src="/images/hero-collage.png" alt="Highstreet Society poster sets collage"
+               width="1400" height="952" fetchpriority="high" decoding="async">
+        </picture>`;
 const el = document.getElementById('content');
+// hero collage data loads in parallel with the page (live catalogue, published sets only)
+const heroPosters = window.HSSHeroCollage ? H.api('/api/hero-posters').catch(() => null) : null;
 try{
   const [d] = await Promise.all([ H.api('/api/homepage'), H.renderLayout('home') ]);
   const show = d.showSections||{};
@@ -44,6 +53,8 @@ try{
   const insta = { title: (B.insta||{}).title || DEF.insta.title, text: (B.insta||{}).text || DEF.insta.text };
   const v = k => H.esc(hero[k] || DEF[k]);
   const img = hero.image && hero.image !== DEFAULT_HERO_IMG ? hero.image : '';
+  // no custom hero image in Admin → the dynamic collage of the live catalogue
+  const dyn = !img && !!heroPosters;
   const block = (k, cls, items, link) => { const s = sec(k); return `<div class="wrap"><section class="block">
     <div class="shead"><div><h2>${hl(s.title)}</h2>${s.sub?`<p>${H.esc(s.sub)}</p>`:''}</div>${link}</div>
     <div class="${cls}">${items}</div>
@@ -63,14 +74,9 @@ try{
           <a class="btn btn-ghost" href="${H.esc(hero.cta2Link||'/shop?filter=new')}">${H.esc(hero.cta2Text||'New arrivals')} &nbsp;→</a>
         </div>
       </div>
-      <div class="hero2-art">
+      <div class="hero2-art${dyn?' hc':''}">
         ${img ? `<img src="${H.esc(H.img(img,1200))}" alt="Highstreet Society poster sets" fetchpriority="high" decoding="async" onerror="this.onerror=null;this.src='${H.esc(img)}'">`
-        : `<picture>
-          <source media="(max-width:700px)" srcset="/images/hero-collage-sm.webp" type="image/webp">
-          <source srcset="/images/hero-collage.webp" type="image/webp">
-          <img src="/images/hero-collage.png" alt="Highstreet Society poster sets collage"
-               width="1400" height="952" fetchpriority="high" decoding="async">
-        </picture>`}
+        : dyn ? '<div class="hc-stage" role="img" aria-label="Highstreet Society poster sets collage"></div>' : STATIC_ART}
       </div>
     </div>
     <div class="hero2-foot">${v('strip')}</div>
@@ -115,6 +121,7 @@ try{
     </div>
   </div></div>`}
   `;
+  if(dyn && show.hero!==false) HSSHeroCollage.mount(el.querySelector('.hero2-art.hc'), heroPosters, STATIC_ART);
   // 3D poster gallery (public/js/gallery3d.js) fills its reserved stage after the page paints
   if(window.HSSGallery3D) HSSGallery3D.mount(document.getElementById('g3d'));
 }catch(e){

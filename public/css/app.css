@@ -1396,3 +1396,37 @@ main#content:empty,
 .wnote{margin:2px 0 0;font-size:12.5px;line-height:1.5;color:var(--dim)}
 @media (max-width:700px){.wtoggle{margin-left:0}.wlab{width:46px}}
 @media (prefers-reduced-motion:reduce){.wallscene{animation:none}.wset,.wp{transition:none}}
+
+/* ============ HERO — dynamic poster collage (public/js/hero-collage.js) ============
+   The stage keeps the old collage's 1400×952 box, so nothing below moves.
+   A soft light blooms first (::before, visible while posters preload); posters
+   land on a stack, bloom into place, then float gently. Artwork is never cropped:
+   each frame takes the image's own aspect ratio. */
+.hero2-art.hc{display:flex;justify-content:center}
+.hc-stage{position:relative;width:100%;aspect-ratio:1400/952}
+.hc-stage::before{content:"";position:absolute;left:50%;top:54%;width:84%;aspect-ratio:1;border-radius:50%;
+  pointer-events:none;opacity:0;transform:translate(-50%,-50%) scale(.5);
+  background:radial-gradient(circle,rgba(186,120,255,.30) 0%,rgba(123,47,247,.13) 38%,rgba(123,47,247,0) 68%);
+  animation:hcBloom 1.6s cubic-bezier(.2,.7,.2,1) .05s forwards}
+@keyframes hcBloom{to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.hc-p{position:absolute;display:block;-webkit-tap-highlight-color:transparent;
+  translate:calc(var(--px,0) * var(--z) * -5px) calc(var(--py,0) * var(--z) * -4px);
+  transition:translate .9s cubic-bezier(.2,.7,.2,1),scale .45s cubic-bezier(.2,.7,.2,1)}
+.hc-f{display:block;position:relative;border-radius:2px;overflow:hidden;background:#1a1024;
+  box-shadow:0 calc(4px + var(--z) * 7px) calc(12px + var(--z) * 12px) rgba(6,2,14,.55),0 1px 3px rgba(0,0,0,.4)}
+.hero2-art.hc .hc-f img{display:block;width:100%;height:auto;max-width:none;margin:0;filter:none;transform:none}
+.hc-f::after{content:"";position:absolute;inset:0;pointer-events:none;transform:translateX(-130%);
+  background:linear-gradient(112deg,rgba(255,255,255,0) 38%,rgba(255,255,255,.2) 50%,rgba(255,255,255,0) 62%)}
+.hc-shine .hc-f::after{animation:hcShine 1.4s cubic-bezier(.3,.6,.2,1) forwards}
+@keyframes hcShine{to{transform:translateX(130%)}}
+.hc-live .hc-f{animation:hcFloat var(--fd,8s) ease-in-out infinite alternate}
+@keyframes hcFloat{to{transform:translateY(var(--fy,-5px)) rotate(var(--fr,0deg))}}
+.hc-live .hc-p:hover{scale:1.04}
+@media (max-width:860px){.hc-stage{width:min(90%,600px);aspect-ratio:1.6}}
+@media (max-width:600px){.hc-stage{width:min(98%,440px);aspect-ratio:1.75}}
+@media (prefers-reduced-motion:reduce){
+  .hc-stage::before{animation:none;opacity:1;transform:translate(-50%,-50%)}
+  .hc-live .hc-f,.hc-shine .hc-f::after{animation:none}
+  .hc-p{transition:none;translate:none}
+  .hc-live .hc-p:hover{scale:none}
+}

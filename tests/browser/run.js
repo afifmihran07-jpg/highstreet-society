@@ -350,6 +350,7 @@ async function admin(browser, base, snap) {
     await flows.adminModules(T);
     await require('./gallery3d')(T);
     await require('./premium')(T);
+    await require('./hero')(T);
     await flows.phase3(T);   // last: it changes prices/homepage on the throwaway server
     heading('Server log');
     const badLines = server.log().split('\n').filter(l =>

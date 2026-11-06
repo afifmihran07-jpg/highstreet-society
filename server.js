@@ -1719,8 +1719,10 @@ function allowedImageUrl(u){
       x.pathname.startsWith('/storage/v1/object/public/' + SUPABASE_BUCKET + '/') && !x.pathname.includes('..');
   }catch(_){ return false; }
 }
-async function renderImage(u, w, fmt, file){
-  await imgSlot();
+async function renderImage(u, w, fmt, file, background){
+  // background jobs (hero tone warm-up) run one at a time on their own and never
+  // take a visitor's /img slot, so they can't queue ahead of real page requests
+  if(!background) await imgSlot();
   try{
     const r = await fetch(u, { signal: AbortSignal.timeout(20000) });
     if(!r.ok) throw new Error('origin HTTP ' + r.status);
@@ -1734,7 +1736,7 @@ async function renderImage(u, w, fmt, file){
     const tmp = file + '.' + process.pid + '.' + crypto.randomBytes(3).toString('hex') + '.tmp';
     await fs.promises.writeFile(tmp, out);
     await fs.promises.rename(tmp, file);
-  } finally { imgDone(); }
+  } finally { if(!background) imgDone(); }
 }
 app.get('/img', async (req,res)=>{
   const u = String(req.query.u || '');
@@ -1757,6 +1759,115 @@ app.get('/img', async (req,res)=>{
     res.redirect(302, u);
   }
 });
+
+/* ---------------- homepage hero: dynamic poster collage ----------------
+   GET /api/hero-posters lists every poster of every PUBLISHED set, read live
+   from the catalogue, so new sets join, and unpublished or deleted sets drop out,
+   with no manual list. Each poster carries a small colour summary ("tone")
+   that public/js/hero-collage.js uses to art-direct matching combinations.
+   Tones are measured once per image URL, in the background, from the 400 px
+   /img rendition the hero itself shows (so that cache is warm after a deploy).
+   Until measured a poster has t:null and still joins mixed/category moods.
+   Artwork is only read, never changed. Read-only endpoint; no schema change. */
+const HERO_W = 400;
+const TONE_FILE = path.join(IMG_CACHE_DIR, 'hero-tones-v1.json');
+let heroTones = {};
+try{ heroTones = JSON.parse(fs.readFileSync(TONE_FILE, 'utf8')) || {}; }catch(_){}
+const toneQueue = new Set();
+const toneFailed = new Map();        // url → { at, missing }
+let toneRunning = false;
+function publicImageFile(u){         // local catalogue images (dev uploads, /images/…)
+  if(typeof u !== 'string' || !u.startsWith('/') || u.startsWith('//')) return null;
+  const root = path.join(__dirname, 'public');
+  let f; try{ f = path.normalize(path.join(root, decodeURIComponent(u.split('?')[0]))); }catch(_){ return null; }
+  return f.startsWith(root + path.sep) && fs.existsSync(f) ? f : null;
+}
+async function measureTone(u){
+  let src;
+  if(allowedImageUrl(u)){
+    const key = crypto.createHash('sha1').update(u + '|' + HERO_W + '|webp').digest('hex');
+    src = path.join(IMG_CACHE_DIR, key + '.webp');
+    if(!fs.existsSync(src)){
+      let job = IMG_INFLIGHT.get(key);
+      if(!job){ job = renderImage(u, HERO_W, 'webp', src, true).finally(() => IMG_INFLIGHT.delete(key)); IMG_INFLIGHT.set(key, job); }
+      await job;
+    }
+  } else {
+    src = publicImageFile(u);
+    if(!src) throw Object.assign(new Error('image not found'), { missing: true });
+  }
+  const sharp = require('sharp');
+  const meta = await sharp(src).metadata();
+  const { data } = await sharp(src).resize(24, 34, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  let n = 0, L = 0, C = 0, pink = 0, dark = 0, light = 0, warm = 0, cw = 0, hx = 0, hy = 0;
+  for(let i = 0; i < data.length; i += 3){
+    const r = data[i] / 255, g = data[i + 1] / 255, b = data[i + 2] / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn, l = (mx + mn) / 2;
+    let h = 0;
+    if(c > 0) h = mx === r ? 60 * (((g - b) / c) % 6) : mx === g ? 60 * ((b - r) / c + 2) : 60 * ((r - g) / c + 4);
+    if(h < 0) h += 360;
+    n++; L += l; C += c;
+    if(l < .22) dark++;
+    if(l > .78) light++;
+    if(c > .1 && (h >= 290 || h <= 12) && l > .3) pink++;
+    if(c > .12){ const wgt = c * c; cw += wgt; hx += Math.cos(h * Math.PI / 180) * wgt; hy += Math.sin(h * Math.PI / 180) * wgt;
+      if(h <= 70 || h >= 330) warm += wgt; }
+  }
+  const r3 = x => Math.round(x * 1000) / 1000;
+  let hue = Math.atan2(hy, hx) * 180 / Math.PI; if(hue < 0) hue += 360;
+  return { ar: r3((meta.height || 297) / (meta.width || 210)),
+    h: cw ? Math.round(hue) : null,                       // dominant hue (colour-weighted)
+    hc: r3(cw ? Math.hypot(hx, hy) / cw : 0),             // how concentrated that hue is
+    l: r3(L / n), c: r3(C / n),                           // mean lightness / colourfulness
+    pink: r3(pink / n), dark: r3(dark / n), light: r3(light / n), warm: r3(cw ? warm / cw : 0) };
+}
+function saveTones(){
+  const keep = new Set(); db.products.forEach(p => posterImages(p).forEach(u => keep.add(u)));
+  for(const u of Object.keys(heroTones)) if(!keep.has(u)) delete heroTones[u];
+  fs.promises.mkdir(IMG_CACHE_DIR, { recursive: true })
+    .then(() => fs.promises.writeFile(TONE_FILE, JSON.stringify(heroTones))).catch(() => {});
+}
+function queueTones(urls){
+  for(const u of urls){
+    const f = toneFailed.get(u);
+    if(heroTones[u] || (f && Date.now() - f.at < 10 * 60 * 1000)) continue;
+    toneQueue.add(u);
+  }
+  if(toneRunning || !toneQueue.size) return;
+  toneRunning = true;
+  (async () => {
+    let done = 0;
+    while(toneQueue.size){
+      const u = toneQueue.values().next().value; toneQueue.delete(u);
+      try{ heroTones[u] = await measureTone(u); toneFailed.delete(u); done++; }
+      catch(e){ toneFailed.set(u, { at: Date.now(), missing: !!e.missing || /HTTP 4\d\d/.test(e.message || '') });
+        console.warn('[hero] could not read poster tone:', e && e.message); }
+      if(done && done % 12 === 0) saveTones();
+    }
+    if(done) saveTones();
+    toneRunning = false;
+  })();
+}
+const heroPosterUrls = () => db.products.filter(p => p.published).flatMap(p => posterImages(p));
+app.get('/api/hero-posters', (req,res)=>{
+  const cats = Object.fromEntries(db.categories.filter(c => c.visible !== false).map(c => [c.id, c.name]));
+  const posters = [], want = [];
+  for(const p of db.products){
+    if(!p.published) continue;
+    const cs = (p.categoryIds || []).filter(id => cats[id]);
+    posterImages(p).forEach((u, i) => {
+      const f = toneFailed.get(u);
+      if(f && f.missing) return;                          // a missing image never reaches the hero
+      const t = heroTones[u] || null;
+      if(!t) want.push(u);
+      posters.push({ u, id: p.id, slug: p.slug, name: p.name, setNo: p.setNo, cats: cs, i, t });
+    });
+  }
+  if(want.length) queueTones(want);
+  res.set('Cache-Control', 'no-cache');
+  res.json({ posters, cats });
+});
+
 
 /* ---------------- admin: upload → Supabase Storage ---------------- */
 const upload = multer({
@@ -1973,6 +2084,8 @@ async function startServer(){
     initializeSessionSecret();
     server = app.listen(PORT, '0.0.0.0', () => {
       console.log('HSS running on http://0.0.0.0:' + PORT);
+      // hero collage: measure poster tones + warm their 400 px images, one at a time
+      setTimeout(() => { try{ queueTones(heroPosterUrls()); }catch(_){ } }, 4000).unref();
     });
     server.on('error', (err) => {
       if (err && err.code === 'EADDRINUSE') {
